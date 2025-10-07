@@ -4,3 +4,6 @@ venv/
 
 # Environment Variables
 .env
+
+# Just unwanted I guess 
+.ipynb_checkpoints/
