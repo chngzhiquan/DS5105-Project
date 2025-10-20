@@ -488,8 +488,8 @@ def generate_ta_report(USER_UPLOADED_FILE_PATH, ideal_clauses_retriever):
             feedback_report.append(feedback)
 
         print("\n--- Phase 1 Complete: Analysis ready. ---")
-        # final_report = format_llm_report(feedback_report)
-        return feedback_report # Changed this from final_report
+        final_report = format_llm_report(feedback_report)
+        return final_report # Changed this from final_report
         
     except (ValueError, RuntimeError) as e:
         # Handle the specific errors raised by the extraction function

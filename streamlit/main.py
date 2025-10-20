@@ -497,8 +497,7 @@ if st.session_state.conversation_chain:
         result_tabs = st.tabs(["📋 Summary", "⚠️ Issues", "✅ Compliance", "📊 Details"])
         
         with result_tabs[0]:
-            st.subheader("Tenancy Agreement Report")
-            st.json(st.session_state.verification_results)
+            st.markdown(st.session_state.verification_results)
         with result_tabs[1]:
             st.info("Identified issues will be displayed here")
         
