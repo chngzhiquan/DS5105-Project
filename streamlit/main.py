@@ -12,6 +12,14 @@ from typing import Optional, List, Dict, Any
 import tempfile
 import base64
 from datetime import datetime
+from backend_utils import (
+    load_and_extract_pdf_text,
+    generate_ta_report,
+    answer_contextual_question_openai,
+    initialize_qa_resources,
+    ideal_clauses_retriever,
+    general_qa_retriever
+)
 
 # Load environment variables
 try:
@@ -149,6 +157,18 @@ def initialize_session_state():
     if "export_preview" not in st.session_state:
         st.session_state.export_preview = None
     
+    # Store the initialized OpenAI client object
+    if "openai_client" not in st.session_state:
+        st.session_state.openai_client = None
+
+    # Store the globally loaded Ideal Clauses RAG retriever object (RAG 1)
+    if "ideal_clauses_retriever" not in st.session_state:
+        st.session_state.ideal_clauses_retriever = ideal_clauses_retriever
+
+    # Store the globally loaded General Q&A RAG retriever object (RAG 2)
+    if "general_qa_retriever" not in st.session_state:
+        st.session_state.general_qa_retriever = general_qa_retriever
+    
     # UI state
     if "is_processing" not in st.session_state:
         st.session_state.is_processing = False
@@ -278,6 +298,7 @@ def process_uploaded_document(uploaded_file) -> bool:
         st.session_state.uploaded_file_content = uploaded_file.getvalue()
         
         # TODO: Add actual document processing logic here
+        
         # This is a placeholder for now
         
         return True
@@ -291,7 +312,7 @@ def create_rag_verification_section():
     
     st.markdown('<div class="section-header">🔍 2. RAG Verification</div>', unsafe_allow_html=True)
     
-    if not st.session_state.uploaded_file_name:
+    if not st.session_state.get("uploaded_file_name"):
         st.info("📋 Upload a document first to enable RAG verification")
         return
     
@@ -452,13 +473,27 @@ if st.session_state.conversation_chain:
     
     with col2:
         if st.button("▶️ Analyze Contract", type="primary"):
+            uploaded_content = st.session_state.get('uploaded_file_content')
+            if not uploaded_content:
+                st.error("❌ No document content available for analysis")
+                return
+            # Initialise temporary file
+            temp_file_path = None
             with st.spinner("Analyzing contract..."):
-                # TODO: Implement actual contract verification
-                st.session_state.verification_results = {
-                    "status": "pending",
-                    "message": "Contract analysis code to be implemented"
-                }
-                st.info("⏳ Contract analysis ready for implementation")
+                try:
+                    file_extension = os.path.splitext(st.session_state.get('uploaded_file_name','.pdf'))[1]
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
+                        tmp_file.write(uploaded_content)
+                        temp_file_path = tmp_file.name
+                    report = generate_ta_report(USER_UPLOADED_FILE_PATH=temp_file_path, ideal_clauses_retriever=st.session_state.get("ideal_clauses_retriever"))
+                    st.session_state.verification_results = report
+                    st.success("✅ Contract analysis completed!")
+                except Exception as e:
+                    st.error(f"❌ Analysis failed: {str(e)}")
+                    st.session_state.verification_results = None
+                finally:
+                    if temp_file_path and os.path.exists(temp_file_path):
+                        os.unlink(temp_file_path)
     
     # Display results if available
     if st.session_state.verification_results:
@@ -469,8 +504,8 @@ if st.session_state.conversation_chain:
         result_tabs = st.tabs(["📋 Summary", "⚠️ Issues", "✅ Compliance", "📊 Details"])
         
         with result_tabs[0]:
-            st.info("Summary results will be displayed here")
-        
+            st.subheader("Tenancy Agreement Report")
+            st.json(st.session_state.verification_results)
         with result_tabs[1]:
             st.info("Identified issues will be displayed here")
         
@@ -582,22 +617,48 @@ if st.session_state.vectorstore and not st.session_state.conversation_chain:
 
 def handle_suggested_question(question: str):
     """Handle suggested question clicks"""
+    if not st.session_state.get("conversation_chain"):
+        st.error("❌ Chatbot not initialized")
+        return
     st.session_state.messages.append({"role": "user", "content": question})
     
     # TODO: Implement actual chatbot response
-    response = f"This is a placeholder response for: '{question}'. Chatbot logic to be implemented."
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    
+    with st.spinner("Thinking..."):
+        try:
+            response = answer_contextual_question_openai(
+                user_question=question, 
+                general_qa_retriever= st.session_state.get("general_qa_retriever"),
+                openai_client=st.session_state.get("openai_client"),
+                ta_report=st.session_state.get("verification_results"),
+                past_messages=st.session_state.get("conversation_chain")
+                )
+            st.session_state.messages.append({"role": "assistant", "content": response})
+        except Exception as e:
+            st.error(f"❌ Chatbot response failed: {str(e)}")
+            st.session_state.messages.pop()  # Remove last user message on failure
     st.rerun()
 
 def handle_user_question(question: str):
     """Handle user question input"""
+    if not st.session_state.get("conversation_chain"):
+        st.error("❌ Chatbot not initialized")
+        return
     st.session_state.messages.append({"role": "user", "content": question})
-    
+
     # TODO: Implement actual chatbot response
-    response = f"This is a placeholder response for: '{question}'. Chatbot logic to be implemented."
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    
+    with st.spinner("Thinking..."):
+        try:
+            response = answer_contextual_question_openai(
+                user_question=question, 
+                general_qa_retriever= st.session_state.get("general_qa_retriever"),
+                openai_client=st.session_state.get("openai_client"),
+                ta_report=st.session_state.get("verification_results"),
+                past_messages=st.session_state.get("conversation_chain")
+                )
+            st.session_state.messages.append({"role": "assistant", "content": response})
+        except Exception as e:
+            st.error(f"❌ Chatbot response failed: {str(e)}")
+            st.session_state.messages.pop()  # Remove last user message on failure
     st.rerun()
 
 def create_export_section():
