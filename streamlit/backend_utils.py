@@ -151,7 +151,7 @@ def load_retriever(FAISS_INDEX_PATH, K):
     """
     Loads the saved FAISS index and returns the retriever object for runtime use.
     """
-    print("\n--- LOADING RAG 1 RETRIEVER ---")
+    print("\n--- LOADING RAG RETRIEVER ---")
     
     if not os.path.exists(FAISS_INDEX_PATH):
         # This is a critical error if the index should be pre-built
@@ -444,7 +444,11 @@ except Exception as e:
     ideal_clauses_retriever = None
 
 # --- RAG 2: General Q&A Configuration ---
-GENERAL_QA_FAISS = "../faiss_index_general_qa" 
+GENERAL_QA_FAISS = os.path.join(
+    BACKEND_SCRIPT_DIR,
+    "..",                     # Moves to DS5105-PROJECT/
+    "faiss_index_general_qa" # Finds the folder
+)
 # K is already defined
 
 # --- GLOBAL RESOURCE INITIALIZATION (RAG 2) ---
@@ -513,14 +517,13 @@ def initialize_qa_resources(openai_api_key: str):
 def answer_contextual_question_openai(
     user_question: str, 
     general_qa_retriever: object,
-    openai_client: object,
     ta_report: Optional[List[Dict]] = None, # Optional TA Report (Phase 1 output)
     past_messages: Optional[List[Dict[str, str]]] = None # Optional Chat History
 ) -> str:
     """
     Answers a user question using RAG 2, the TA report, and chat history.
     """
-    if not openai_client:
+    if not client:
         return "OpenAI client is not configured correctly. Check API key."
 
     print(f"\n[Q&A] Answering contextual question with GPT: {user_question[:50]}...")
@@ -574,15 +577,16 @@ def answer_contextual_question_openai(
     for attempt in range(MAX_RETRIES):
         try:
          
-            response = openai_client.chat.completions.create(
+            response = client.chat.completions.create(
                 model=LLM_MODEL,
                 messages=messages, # Now uses the full history list
                 temperature=0.0
             )
             answer_text = response.choices[0].message.content
+            styled_answer = f"""<span style="color:black;">{answer_text}</span>""" 
             
             print(f"... Successful answer generated on attempt {attempt + 1}.")
-            return answer_text
+            return styled_answer
             
         except Exception as e:
             if attempt < MAX_RETRIES - 1:

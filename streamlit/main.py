@@ -13,10 +13,8 @@ import tempfile
 import base64
 from datetime import datetime
 from backend_utils import (
-    load_and_extract_pdf_text,
     generate_ta_report,
     answer_contextual_question_openai,
-    initialize_qa_resources,
     ideal_clauses_retriever,
     general_qa_retriever
 )
@@ -106,10 +104,12 @@ def setup_custom_css():
     .user-message {
         background-color: #E3F2FD;
         border-left: 4px solid #2196F3;
+        color: #000000;
     }
     .assistant-message {
         background-color: #F3E5F5;
         border-left: 4px solid #9C27B0;
+        color: #000000;
     }
     .stButton>button {
         width: 100%;
@@ -136,8 +136,13 @@ def initialize_session_state():
         st.session_state.uploaded_file_content = None
     
     # RAG state
-    if "vectorstore" not in st.session_state:
-        st.session_state.vectorstore = None
+    # Ideal Clauses RAG retriever object (RAG 1)
+    if "ideal_clauses_retriever" not in st.session_state:
+        st.session_state.ideal_clauses_retriever = ideal_clauses_retriever
+
+    # General Q&A RAG retriever object (RAG 2)
+    if "general_qa_retriever" not in st.session_state:
+        st.session_state.general_qa_retriever = general_qa_retriever
     
     if "rag_results" not in st.session_state:
         st.session_state.rag_results = None
@@ -156,18 +161,6 @@ def initialize_session_state():
     # Export state
     if "export_preview" not in st.session_state:
         st.session_state.export_preview = None
-    
-    # Store the initialized OpenAI client object
-    if "openai_client" not in st.session_state:
-        st.session_state.openai_client = None
-
-    # Store the globally loaded Ideal Clauses RAG retriever object (RAG 1)
-    if "ideal_clauses_retriever" not in st.session_state:
-        st.session_state.ideal_clauses_retriever = ideal_clauses_retriever
-
-    # Store the globally loaded General Q&A RAG retriever object (RAG 2)
-    if "general_qa_retriever" not in st.session_state:
-        st.session_state.general_qa_retriever = general_qa_retriever
     
     # UI state
     if "is_processing" not in st.session_state:
@@ -577,14 +570,14 @@ if st.session_state.vectorstore and not st.session_state.conversation_chain:
             for message in st.session_state.messages:
                 if message["role"] == "user":
                     st.markdown(f"""
-                    <div class="chat-message user-message">
+                    <div class="chat-message user-message style="color:black;">
                         <strong>👤 You:</strong><br>
                         {message["content"]}
                     </div>
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                    <div class="chat-message assistant-message">
+                    <div class="chat-message assistant-message" style="color:black;">
                         <strong>🤖 Assistant:</strong><br>
                         {message["content"]}
                     </div>
@@ -617,21 +610,27 @@ if st.session_state.vectorstore and not st.session_state.conversation_chain:
 
 def handle_suggested_question(question: str):
     """Handle suggested question clicks"""
-    if not st.session_state.get("conversation_chain"):
-        st.error("❌ Chatbot not initialized")
+    if not st.session_state.get("general_qa_retriever"):
+        st.error("❌ General Q&A RAG retriever not initialized")
         return
+    # Add user message to history for display
     st.session_state.messages.append({"role": "user", "content": question})
+    # Extract past messages for function
+    past_messages_for_llm = [
+        {"role":msg["role"], "content":msg["content"]} 
+        for msg in st.session_state.messages
+        if msg["role"] == ["user", "assistant"] and msg["content"]
+    ]
     
-    # TODO: Implement actual chatbot response
+    # Implement chatbot response
     with st.spinner("Thinking..."):
         try:
             response = answer_contextual_question_openai(
-                user_question=question, 
-                general_qa_retriever= st.session_state.get("general_qa_retriever"),
-                openai_client=st.session_state.get("openai_client"),
-                ta_report=st.session_state.get("verification_results"),
-                past_messages=st.session_state.get("conversation_chain")
-                )
+                user_question=question,
+                general_qa_retriever=st.session_state.general_qa_retriever,
+                ta_report=st.session_state.verification_results,
+                past_messages=past_messages_for_llm
+            )
             st.session_state.messages.append({"role": "assistant", "content": response})
         except Exception as e:
             st.error(f"❌ Chatbot response failed: {str(e)}")
@@ -640,21 +639,26 @@ def handle_suggested_question(question: str):
 
 def handle_user_question(question: str):
     """Handle user question input"""
-    if not st.session_state.get("conversation_chain"):
-        st.error("❌ Chatbot not initialized")
+    if not st.session_state.get("general_qa_retriever"):
+        st.error("❌ General Q&A RAG retriever not initialized")
         return
+    # Add user message to history for display
     st.session_state.messages.append({"role": "user", "content": question})
-
-    # TODO: Implement actual chatbot response
+    # Extract past messages for function
+    past_messages_for_llm = [
+        {"role":msg["role"], "content":msg["content"]} 
+        for msg in st.session_state.messages
+        if msg["role"] == ["user", "assistant"] and msg["content"]
+    ]
+    # Implement chatbot response
     with st.spinner("Thinking..."):
         try:
             response = answer_contextual_question_openai(
-                user_question=question, 
-                general_qa_retriever= st.session_state.get("general_qa_retriever"),
-                openai_client=st.session_state.get("openai_client"),
-                ta_report=st.session_state.get("verification_results"),
-                past_messages=st.session_state.get("conversation_chain")
-                )
+                user_question=question,
+                general_qa_retriever=st.session_state.general_qa_retriever,
+                ta_report=st.session_state.verification_results,
+                past_messages=past_messages_for_llm
+            )
             st.session_state.messages.append({"role": "assistant", "content": response})
         except Exception as e:
             st.error(f"❌ Chatbot response failed: {str(e)}")
