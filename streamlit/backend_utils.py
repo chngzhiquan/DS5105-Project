@@ -394,10 +394,10 @@ def format_llm_report(feedback_report: List[Dict]) -> str:
         full_report_sections.append(f"##### {risk_color} Risk Level: **{risk}**")
 
         full_report_sections.append(f"\n##### 📝 Detailed Critique")
-        full_report_sections.append(f"\n**Feedback:** {feedback}")
+        full_report_sections.append(f"\n###### {feedback}")
 
         full_report_sections.append(f"\n##### 🛠️ Actionable Suggestion")
-        full_report_sections.append(f"\n**Action:** {suggestion}")
+        full_report_sections.append(f"\n###### {suggestion}")
         full_report_sections.append("---")
 
     return "\n".join(full_report_sections)

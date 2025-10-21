@@ -388,7 +388,7 @@ if st.session_state.conversation_chain:
                         temp_file_path = tmp_file.name
                     report, review_prompt = generate_ta_report(USER_UPLOADED_FILE_PATH=temp_file_path, ideal_clauses_retriever=st.session_state.get("ideal_clauses_retriever"))
                     st.session_state.verification_results = report
-                    st.session_state.rag_results = review_prompt
+                    st.session_state.rag_results = review_report(review_prompt)
                     st.success("✅ Contract analysis completed!")
                 except Exception as e:
                     st.error(f"❌ Analysis failed: {str(e)}")
@@ -638,7 +638,6 @@ if st.session_state.vectorstore:
         if st.button("▶️ Run Verification", type="primary"):
             with st.spinner("Verifying RAG..."):
                 # TODO: Implement actual RAG verification
-                st.session_state.rag_results = review_report(st.session_state.rag_results)
                 st.info("⏳ RAG verification ready for implementation")
     
     # Display results if available
