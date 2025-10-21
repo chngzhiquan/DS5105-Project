@@ -16,7 +16,8 @@ from backend_utils import (
     generate_ta_report,
     answer_contextual_question_openai,
     ideal_clauses_retriever,
-    general_qa_retriever
+    general_qa_retriever,
+    review_report
 )
 
 # Load environment variables
@@ -121,6 +122,7 @@ def setup_custom_css():
         padding: 2rem;
         border-radius: 12px;
         border: 2px dashed #2E86AB;
+        color: #000000;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -154,9 +156,6 @@ def initialize_session_state():
     # Chat state
     if "messages" not in st.session_state:
         st.session_state.messages = []
-    
-    if "conversation_chain" not in st.session_state:
-        st.session_state.conversation_chain = None
     
     # Export state
     if "export_preview" not in st.session_state:
@@ -208,11 +207,9 @@ def create_sidebar():
                 # Reset all states
                 st.session_state.uploaded_file_name = None
                 st.session_state.uploaded_file_content = None
-                st.session_state.vectorstore = None
                 st.session_state.rag_results = None
                 st.session_state.verification_results = None
                 st.session_state.messages = []
-                st.session_state.conversation_chain = None
                 st.session_state.export_preview = None
                 st.rerun()
         
@@ -223,9 +220,9 @@ def create_sidebar():
             st.markdown("""
             ### Steps:
             1. **Upload** tenancy agreement PDF
-            2. **Review** RAG verification
-            3. **Check** AI contract analysis
-            4. **Chat** with the document
+            2. **Check** AI contract analysis
+            3. **Chat** with the Chatbot
+            4. **Review** RAG verification
             5. **Export** results
             
             ### Requirements:
@@ -244,8 +241,6 @@ def create_upload_section():
     """Section 1: Upload PDF file"""
     
     st.markdown('<div class="section-header">📤 1. Upload Tenancy Agreement</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="upload-section">', unsafe_allow_html=True)
     
     uploaded_file = st.file_uploader(
         "Choose a PDF file of your tenancy agreement:",
@@ -290,110 +285,23 @@ def process_uploaded_document(uploaded_file) -> bool:
         # Save file content
         st.session_state.uploaded_file_content = uploaded_file.getvalue()
         
-        # TODO: Add actual document processing logic here
-        
-        # This is a placeholder for now
-        
         return True
         
     except Exception as e:
         st.error(f"Error: {str(e)}")
         return False
 
-def create_rag_verification_section():
-    """Section 2: RAG Verification"""
-    
-    st.markdown('<div class="section-header">🔍 2. RAG Verification</div>', unsafe_allow_html=True)
-    
-    if not st.session_state.get("uploaded_file_name"):
-        st.info("📋 Upload a document first to enable RAG verification")
-        return
-    
-    st.markdown("""
-    <div class="result-box">
-    <h4>📊 Document Retrieval Quality Check</h4>
-    <p>This section will verify the quality of document retrieval using RAG (Retrieval-Augmented Generation).</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.write("**Verification Status:**")
-        
-        # Placeholder for RAG verification code
-        with st.expander("🔧 RAG Verification Code Space", expanded=False):
-            st.code("""
-# === RAG VERIFICATION CODE ===
-# TODO: Implement RAG verification logic here
-
-def verify_rag_quality(vectorstore):
-    '''
-    Verify the quality of document retrieval
-    
-    Returns:
-        dict: Verification results with metrics
-    '''
-    
-    # Sample test queries
-    test_queries = [
-        "What is the monthly rent?",
-        "What is the lease duration?",
-        "What are the tenant responsibilities?"
-    ]
-    
-    results = {
-        "retrieval_accuracy": 0.0,
-        "relevance_score": 0.0,
-        "coverage": 0.0,
-        "test_results": []
-    }
-    
-    # TODO: Implement actual verification
-    
-    return results
-
-# Run verification
-if st.session_state.vectorstore:
-    results = verify_rag_quality(st.session_state.vectorstore)
-    st.session_state.rag_results = results
-            """, language="python")
-    
-    with col2:
-        if st.button("▶️ Run Verification", type="primary"):
-            with st.spinner("Verifying RAG..."):
-                # TODO: Implement actual RAG verification
-                st.session_state.rag_results = {
-                    "status": "pending",
-                    "message": "RAG verification code to be implemented"
-                }
-                st.info("⏳ RAG verification ready for implementation")
-    
-    # Display results if available
-    if st.session_state.rag_results:
-        st.markdown("---")
-        st.markdown("**Verification Results:**")
-        
-        # Placeholder results display
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Retrieval Accuracy", "N/A", help="To be implemented")
-        with col2:
-            st.metric("Relevance Score", "N/A", help="To be implemented")
-        with col3:
-            st.metric("Coverage", "N/A", help="To be implemented")
-
 def create_contract_verification_section():
-    """Section 3: AI Contract Verification"""
+    """Section 2: AI Contract Verification"""
     
-    st.markdown('<div class="section-header">🤖 3. AI Contract Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🤖 2. AI Contract Analysis</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable contract analysis")
         return
     
     st.markdown("""
-    <div class="result-box">
+    <div class="result-box" style="color:black;">
     <h4>⚖️ Tenancy Agreement Compliance Check</h4>
     <p>AI-powered analysis of contract terms, conditions, and legal compliance.</p>
     </div>
@@ -478,12 +386,14 @@ if st.session_state.conversation_chain:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
                         tmp_file.write(uploaded_content)
                         temp_file_path = tmp_file.name
-                    report = generate_ta_report(USER_UPLOADED_FILE_PATH=temp_file_path, ideal_clauses_retriever=st.session_state.get("ideal_clauses_retriever"))
+                    report, review_prompt = generate_ta_report(USER_UPLOADED_FILE_PATH=temp_file_path, ideal_clauses_retriever=st.session_state.get("ideal_clauses_retriever"))
                     st.session_state.verification_results = report
+                    st.session_state.rag_results = review_prompt
                     st.success("✅ Contract analysis completed!")
                 except Exception as e:
                     st.error(f"❌ Analysis failed: {str(e)}")
                     st.session_state.verification_results = None
+                    st.session_state.rag_results = None
                 finally:
                     if temp_file_path and os.path.exists(temp_file_path):
                         os.unlink(temp_file_path)
@@ -498,8 +408,9 @@ if st.session_state.conversation_chain:
         
         with result_tabs[0]:
             st.markdown(st.session_state.verification_results)
+
         with result_tabs[1]:
-            st.info("Identified issues will be displayed here")
+            st.markdown(st.session_state.rag_results)
         
         with result_tabs[2]:
             st.info("Compliance status will be displayed here")
@@ -508,9 +419,9 @@ if st.session_state.conversation_chain:
             st.info("Detailed analysis will be displayed here")
 
 def create_chat_section():
-    """Section 4 & 5: Chat with Document"""
+    """Section 3: Chatbot"""
     
-    st.markdown('<div class="section-header">💬 4. Chat with Your Agreement</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">💬 3. Chatbot</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable chat")
@@ -569,7 +480,7 @@ if st.session_state.vectorstore and not st.session_state.conversation_chain:
             for message in st.session_state.messages:
                 if message["role"] == "user":
                     st.markdown(f"""
-                    <div class="chat-message user-message style="color:black;">
+                    <div class="chat-message user-message" style="color:black;">
                         <strong>👤 You:</strong><br>
                         {message["content"]}
                     </div>
@@ -664,8 +575,89 @@ def handle_user_question(question: str):
             st.session_state.messages.pop()  # Remove last user message on failure
     st.rerun()
 
+def create_rag_verification_section():
+    """Section 4: RAG Verification"""
+    
+    st.markdown('<div class="section-header">🔍 4. RAG Verification</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.get("uploaded_file_name"):
+        st.info("📋 Upload a document first to enable RAG verification")
+        return
+    
+    st.markdown("""
+    <div class="result-box" style="color:black;">
+    <h4>📊 Document Retrieval Quality Check</h4>
+    <p>This section will verify the quality of document retrieval using RAG (Retrieval-Augmented Generation).</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.write("**Verification Status:**")
+        
+        # Placeholder for RAG verification code
+        with st.expander("🔧 RAG Verification Code Space", expanded=False):
+            st.code("""
+# === RAG VERIFICATION CODE ===
+# TODO: Implement RAG verification logic here
+
+def verify_rag_quality(vectorstore):
+    '''
+    Verify the quality of document retrieval
+    
+    Returns:
+        dict: Verification results with metrics
+    '''
+    
+    # Sample test queries
+    test_queries = [
+        "What is the monthly rent?",
+        "What is the lease duration?",
+        "What are the tenant responsibilities?"
+    ]
+    
+    results = {
+        "retrieval_accuracy": 0.0,
+        "relevance_score": 0.0,
+        "coverage": 0.0,
+        "test_results": []
+    }
+    
+    # TODO: Implement actual verification
+    
+    return results
+
+# Run verification
+if st.session_state.vectorstore:
+    results = verify_rag_quality(st.session_state.vectorstore)
+    st.session_state.rag_results = results
+            """, language="python")
+    
+    with col2:
+        if st.button("▶️ Run Verification", type="primary"):
+            with st.spinner("Verifying RAG..."):
+                # TODO: Implement actual RAG verification
+                st.session_state.rag_results = review_report(st.session_state.rag_results)
+                st.info("⏳ RAG verification ready for implementation")
+    
+    # Display results if available
+    if st.session_state.rag_results:
+        st.markdown("---")
+        st.markdown("**Verification Results:**")
+        st.markdown(st.session_state.rag_results)
+        
+        # # Placeholder results display
+        # col1, col2, col3 = st.columns(3)
+        # with col1:
+        #     st.metric("Retrieval Accuracy", "N/A", help="To be implemented")
+        # with col2:
+        #     st.metric("Relevance Score", "N/A", help="To be implemented")
+        # with col3:
+        #     st.metric("Coverage", "N/A", help="To be implemented")
+
 def create_export_section():
-    """Section 6: Export Results"""
+    """Section 5: Export Results"""
     
     st.markdown('<div class="section-header">📥 5. Export Analysis Report</div>', unsafe_allow_html=True)
     
@@ -674,7 +666,7 @@ def create_export_section():
         return
     
     st.markdown("""
-    <div class="result-box">
+    <div class="result-box" style="color:black;">
     <h4>📄 Generate Comprehensive Report</h4>
     <p>Export all analysis results, chat history, and findings in a formatted report.</p>
     </div>
@@ -823,22 +815,22 @@ def main():
     
     st.markdown("---")
     
-    # Section 2: RAG Verification
-    create_rag_verification_section()
-    
-    st.markdown("---")
-    
-    # Section 3: Contract Verification
+    # Section 2: Contract Verification
     create_contract_verification_section()
     
     st.markdown("---")
     
-    # Section 4 & 5: Chat
+    # Section 3 : Chatbot
     create_chat_section()
     
     st.markdown("---")
+
+    # Section 4: RAG Verification
+    create_rag_verification_section()
     
-    # Section 6: Export
+    st.markdown("---")
+    
+    # Section 5: Export
     create_export_section()
     
     # Footer

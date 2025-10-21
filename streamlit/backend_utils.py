@@ -290,17 +290,30 @@ def llm_compare_and_critique_openai(
 
     # 1. FORMAT THE CONTEXT FOR THE LLM
     context_str = "\n---\n".join([doc.page_content for doc in ideal_context_docs])
+
+    # 2. DEFINE THE JSON SCHEMA
+    response_schema = {
+        "type": "object",
+        "properties": {
+            "clause_summary": {"type": "string", "description": "A brief (1-sentence) summary of the user clause's main topic."},
+            "risk_level": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"], "description": "The risk level (LOW, MEDIUM, or HIGH) for the tenant based on deviations from the ideal."},
+            "feedback": {"type": "string", "description": "Specific, actionable criticism on what is missing or concerning in the User Clause."},
+            "suggestion": {"type": "string", "description": "A brief sentence on how the user should attempt to modify the clause."}
+        },
+        "required": ["clause_summary", "risk_level", "feedback", "suggestion"]
+    }
     
-    # 2. DEFINE SYSTEM INSTRUCTION
-    # This sets the persona and output constraints.
+    # 3. DEFINE SYSTEM INSTRUCTION
+    schema_str = json.dumps(response_schema, indent=2)
     system_instruction = (
         "You are a world-class legal analyst specializing in residential tenancy agreements. "
         "Your task is to compare a provided 'User Clause' against 'Ideal Clause Examples' "
         "and generate structured, actionable feedback. Be concise, professional, and focus only on deviations or missing protections for the tenant. "
-        "Your entire output MUST be a single, valid JSON object that strictly adheres to the provided JSON Schema."
+        "Your entire output MUST be a single, valid JSON object that strictly adheres to the provided JSON Schema:\n\n"
+        f"--- JSON SCHEMA ---\n{schema_str}\n---"
     )
 
-    # 3. DEFINE THE USER QUERY (THE CORE PROMPT)
+    # 4. DEFINE THE USER QUERY (THE CORE PROMPT)
     user_query = textwrap.dedent(f"""
         Please analyze the following 'User Clause' and compare it to the 'Ideal Clause Examples'.
 
@@ -316,19 +329,6 @@ def llm_compare_and_critique_openai(
 
         Based on your comparison, provide the analysis in the specified JSON format.
     """)
-
-    # 4. DEFINE THE JSON SCHEMA
-    response_schema = {
-        "type": "object",
-        "properties": {
-            "clause_summary": {"type": "string", "description": "A brief (1-sentence) summary of the user clause's main topic."},
-            "risk_level": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"], "description": "The risk level (LOW, MEDIUM, or HIGH) for the tenant based on deviations from the ideal."},
-            "feedback": {"type": "string", "description": "Specific, actionable criticism on what is missing or concerning in the User Clause."},
-            "suggestion": {"type": "string", "description": "A brief sentence on how the user should attempt to modify the clause."}
-        },
-        "required": ["clause_summary", "risk_level", "feedback", "suggestion"]
-    }
-
 
     # 5. EXECUTE API CALL WITH EXPONENTIAL BACKOFF
     for attempt in range(MAX_RETRIES):
@@ -369,61 +369,38 @@ def llm_compare_and_critique_openai(
     # Should be unreachable
     return {}
 
-def format_llm_report(data: List[Dict[str, Any]]):
-    report_lines = ["# 📄 Comprehensive Tenancy Agreement Analysis Report\n"]
-    issue_counter = 1
-    
-    for clause_feedback in data:
-        # Check if the structure we expect (top-level 'feedback' key) is present
-        feedback_data = clause_feedback.get('feedback', {})
-        
-        # We need a way to summarize *which clause* this is, but the raw output doesn't 
-        # explicitly provide the clause text. We'll use a placeholder structure for now.
-        report_lines.append(f"## 🛠️ Analysis of Clause {issue_counter}\n")
-        
-        has_content = False
-        
-        # 1. Process Deviations
-        deviations = feedback_data.get('deviations', [])
-        if deviations:
-            report_lines.append("### 🔴 Deviations/High Risk Issues:\n")
-            for dev in deviations:
-                issue = dev.get('issue', 'N/A')
-                description = dev.get('description', 'No description provided.')
-                report_lines.append(f"* **{issue}:** {description}\n")
-            has_content = True
+def format_llm_report(feedback_report: List[Dict]) -> str:
+    full_report_sections = []
+    full_report_sections.append("### 📝 Tenancy Agreement Report")
 
-        # 2. Process Missing Protections (or similar structures like vague_terms)
-        missing_protections = feedback_data.get('missing_protections', [])
-        if not missing_protections:
-            # Check for other potential keys used by the LLM, like 'missingProtections' (camelCase)
-            missing_protections = feedback_data.get('missingProtections', [])
-        
-        vague_terms = feedback_data.get('vague_terms', [])
-        
-        if missing_protections or vague_terms:
-            report_lines.append("\n### 🟡 Missing Protections/Vague Terms:\n")
-            
-            # Combine all non-deviation issues for a clear list
-            all_other_issues = missing_protections + vague_terms
-            
-            for issue_data in all_other_issues:
-                # The keys change slightly here ('protection' or 'issue')
-                issue = issue_data.get('protection') or issue_data.get('issue', 'N/A')
-                description = issue_data.get('description', 'No description provided.')
-                report_lines.append(f"* **{issue}:** {description}\n")
-            has_content = True
-        
-        # 3. Add separator and increment counter
-        if has_content:
-            report_lines.append("\n---\n")
-            issue_counter += 1
-        
-    # If the LLM output was perfectly fine, the list might be empty.
-    if issue_counter == 1:
-        return "# ✅ Analysis Complete: No significant deviations found in the provided clauses."
-        
-    return "".join(report_lines)
+    for i, item in enumerate(feedback_report):
+        # 1. Extract Data for the current clause
+        summary = item.get("clause_summary", "N/A")
+        risk = item.get("risk_level", "LOW")
+        feedback = item.get("feedback", "No specific feedback provided.")
+        suggestion = item.get("suggestion", "No specific suggestion provided.")
+
+        # Determine risk badge
+        risk_color = "🟢"
+        if risk == "HIGH":
+            risk_color = "🔴"
+        elif risk == "MEDIUM":
+            risk_color = "🟠"
+
+        # --- SECTION START: Clause Header ---
+        full_report_sections.append(f"\n#### 🔍 Analysis for clause {i+1}: {summary}")
+  
+        # --- 2. LLM CRITIQUE (The most important part) ---
+        full_report_sections.append(f"##### {risk_color} Risk Level: **{risk}**")
+
+        full_report_sections.append(f"\n##### 📝 Detailed Critique")
+        full_report_sections.append(f"\n**Feedback:** {feedback}")
+
+        full_report_sections.append(f"\n##### 🛠️ Actionable Suggestion")
+        full_report_sections.append(f"\n**Action:** {suggestion}")
+        full_report_sections.append("---")
+
+    return "\n".join(full_report_sections)
 
 # --- RAG 1: Ideal Clauses Configuration ---
 # Construct the absolute path: 
@@ -467,34 +444,45 @@ def generate_ta_report(USER_UPLOADED_FILE_PATH, ideal_clauses_retriever):
     if ideal_clauses_retriever is None:
             raise RuntimeError("Report generation failed: Ideal RAG index not loaded.")
     try:
-        # 1. LOAD & EXTRACT TEXT from the PDF
+        # Load & extract text from the PDF
         full_user_document_text = load_and_extract_pdf_text(USER_UPLOADED_FILE_PATH)
 
-        # 2. SPLIT the extracted text into clauses
+        # Split the extracted text into clauses
         user_clause_chunks = split_user_document(
             full_user_document_text, 
             source_name=USER_UPLOADED_FILE_PATH
         )
 
-        # 3. Loop through ALL user clauses for comparison (The RAG Core)
+        # Loop through ALL user clauses for comparison (The RAG Core)
         feedback_report = []
+        review_prompt = []
 
-        for user_clause in user_clause_chunks:
+        for i, user_clause in enumerate(user_clause_chunks):
+            user_clause_content = user_clause.page_content
             # Use RAG 1 to retrieve the Ideal Clause context
-            comparison_context = ideal_clauses_retriever.invoke(user_clause.page_content)
+            comparison_context = ideal_clauses_retriever.invoke(user_clause_content)
+
+            # Store the prompt structure for review
+            review_prompt.append({
+                "clause_number": i + 1,
+                "user_clause": user_clause_content,
+                "comparison_context": comparison_context,
+            })
             
-            # 4. LLM Call for Feedback (Simulated)
-            feedback = llm_compare_and_critique_openai(user_clause.page_content, comparison_context)
+            # LLM Call for feedback
+            feedback = llm_compare_and_critique_openai(user_clause_content, comparison_context)
             feedback_report.append(feedback)
+
+            # Add the raw feedback to the review data for a complete record
+            review_prompt[-1]["llm_feedback"] = feedback
 
         print("\n--- Phase 1 Complete: Analysis ready. ---")
         final_report = format_llm_report(feedback_report)
-        return final_report # Changed this from final_report
+        return final_report, review_prompt
         
     except (ValueError, RuntimeError) as e:
         # Handle the specific errors raised by the extraction function
         print(f"\nFATAL ERROR DURING FILE PROCESSING: {e}")
-        # You would typically stop processing here and inform the user.
 
 # Initialisation function for session state
 def initialize_qa_resources(openai_api_key: str):
@@ -598,3 +586,49 @@ def answer_contextual_question_openai(
                 return f"Unable to generate answer after {MAX_RETRIES} attempts. Error: {e}"
     
     return "Unknown error."
+
+# Formating report for review of all retrievals
+def review_report(review_data: List[Dict]) -> str:
+    """
+    Generates a full Markdown report showing the user clause, RAG context, and LLM feedback
+    for every item in the review_data list.
+    """
+    full_report_sections = []
+
+    for item in review_data:
+        clause_num = item['clause_number']
+        user_clause = item['user_clause']
+        context_docs = item['comparison_context']
+        llm_output = item['llm_feedback']["feedback"]
+
+        # 1. Start Section for the Clause
+        full_report_sections.append(f"##### 🔍 Analysis for Clause {clause_num}")
+        full_report_sections.append("---")
+        
+        # 2. Present the User Clause (The Query)
+        full_report_sections.append(f"###### 📜 User Clause (Query)")
+        full_report_sections.append(f"```markdown\n{user_clause.strip()}\n```") # Use a code block for clean display
+        full_report_sections.append("\n")
+
+        # 3. Present the Comparison Context (The RAG Retrieval)
+        full_report_sections.append("###### 📚 Ideal Clause Context (RAG Retrieval)")
+        
+        if context_docs:
+            for i, doc in enumerate(context_docs):
+                source = doc.metadata.get('source', 'Unknown').split('/')[-1].split('\\')[-1]
+                page = doc.metadata.get('page_label', 'N/A')
+                content = doc.page_content.strip()
+                full_report_sections.append(f"Context Document {i+1} (Source: {source}, Page: {page})")
+                full_report_sections.append(f"> {content[:500]}...") # Limit to first 500 chars
+        else:
+            full_report_sections.append("*No relevant ideal clauses were found for comparison.*")
+
+        full_report_sections.append("\n---")
+        
+        # 4. Present the LLM Feedback (Formatted Output)
+        full_report_sections.append("###### ✨ LLM Feedback")
+        full_report_sections.append(llm_output)
+        
+        full_report_sections.append("\n***\n") # Strong separator between clauses
+
+    return "\n".join(full_report_sections)
