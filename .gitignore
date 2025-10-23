@@ -7,3 +7,9 @@ venv/
 
 # Just unwanted I guess 
 .ipynb_checkpoints/
+.DS_Store
+*.xlsx
+*.csv
+*.jsonl
+*.ipynb
+*.txt
