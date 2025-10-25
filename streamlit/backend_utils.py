@@ -81,7 +81,8 @@ def build_ideal_clauses_retriever(data_directory="./TA_template", faiss_index_pa
     for i, chunk in enumerate(all_chunks[:3]):
         print(f"Chunk {i+1} (Length: {len(chunk.page_content)}):")
         # Print the first 200 characters to keep the output manageable
-        print(f"  {chunk.page_content[:200].replace('\n', ' ')}...") 
+        preview = chunk.page_content[:200].replace("\n", " ")
+        print(f"  {preview}...")
         print(f"  Metadata: {chunk.metadata}")
         print("-" * 20)
 
@@ -258,7 +259,8 @@ def split_user_document(user_uploaded_text: str, source_name: str = "User TA") -
     
     # Optional: Print a preview of the first few chunks
     for i, chunk in enumerate(user_chunks[:3]):
-        print(f"  Chunk {i+1} (Length: {len(chunk.page_content)}): {chunk.page_content[:150].replace('\n', ' ')}...")
+        preview = chunk.page_content[:150].replace("\n", " ")
+        print(f"  Chunk {i+1} (Length: {len(chunk.page_content)}): {preview}...")
     
     return user_chunks
 
@@ -422,6 +424,8 @@ except Exception as e:
 
 # --- RAG 2: General Q&A Configuration ---
 GENERAL_QA_FAISS = os.path.join(
+    os.makedirs(IDEAL_CLAUSES_FAISS, exist_ok=True)
+    os.makedirs(GENERAL_QA_FAISS, exist_ok=True)
     BACKEND_SCRIPT_DIR,
     "..",                     # Moves to DS5105-PROJECT/
     "faiss_index_general_qa" # Finds the folder
@@ -486,6 +490,7 @@ def generate_ta_report(USER_UPLOADED_FILE_PATH, ideal_clauses_retriever):
 
 # Initialisation function for session state
 def initialize_qa_resources(openai_api_key: str):
+    global client
     """Initializes the OpenAI client (runtime dependency)."""
     
     # 1. Initialize OpenAI Client
@@ -632,3 +637,171 @@ def review_report(review_data: List[Dict]) -> str:
         full_report_sections.append("\n***\n") # Strong separator between clauses
 
     return "\n".join(full_report_sections)
+
+# ============================================================
+# WHOLE-DOC MODE (No RAG, direct TA + checklist comparison)
+# ============================================================
+
+def compress_ta_text(raw_text: str, max_chars: int = 120_000) -> str:
+    """
+    Lightweight text compression: clean spaces, remove page footers,
+    keep major clauses. If still too long, truncate with short summaries.
+    """
+    import re
+    text = raw_text
+    text = re.sub(r"\s+\n", "\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"-\n", "", text)
+    text = re.sub(r"\n?Page \d+ of \d+\n?", "\n", text, flags=re.IGNORECASE)
+
+    if len(text) <= max_chars:
+        return text
+
+    paras = re.split(r"\n(?=[A-Z ]{3,}\.?(\s|$)|\d{1,2}\.\s)", text)
+    chunks, acc = [], 0
+    for p in paras:
+        p = p.strip()
+        if not p:
+            continue
+        if acc + len(p) <= max_chars:
+            chunks.append(p)
+            acc += len(p)
+        else:
+            head = p[:1000]
+            chunks.append(f"[SUMMARY] {head}")
+            acc += len(head)
+        if acc >= max_chars:
+            break
+    return "\n\n".join(chunks)
+
+
+def load_checklist(checklist_path: str):
+    """
+    Load checklist file (JSON or CSV) and return list of dicts.
+    Expected fields: id, title, requirement, keywords, must_have.
+    """
+    import json, os
+    import pandas as pd
+    ext = os.path.splitext(checklist_path)[1].lower()
+    if ext == ".json":
+        with open(checklist_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else data.get("items", [])
+    elif ext == ".csv":
+        df = pd.read_csv(checklist_path)
+        return df.to_dict(orient="records")
+    else:
+        raise ValueError("Checklist file must be .json or .csv")
+
+
+def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: str = None):
+    """
+    Compare entire TA (compressed) directly with checklist via LLM.
+    Return structured JSON (no retrieval / embedding required).
+    """
+    import json, time
+    global client, LLM_MODEL
+    if model is None:
+        model = LLM_MODEL
+
+    if client is None:
+        return {
+            "summary": {"compliant": 0, "partial": 0, "missing": len(checklist_items), "overall_risk": "HIGH"},
+            "items": [],
+            "_error": "OpenAI client not configured. Please set OPENAI_API_KEY."
+        }
+
+    system_instruction = (
+        "You are a contract compliance analyst for residential tenancy agreements. "
+        "Return STRICT JSON only. For each checklist item, decide status ∈ "
+        "{COMPLIANT, PARTIAL, MISSING}. Provide evidence (short TA quotes), "
+        "risk (LOW|MEDIUM|HIGH), recommendation (specific edit), and location_hint."
+    )
+
+    user_query = f"""
+=== TENANCY AGREEMENT (COMPRESSED) ===
+{ta_text}
+
+=== CHECKLIST (JSON-LIKE) ===
+{checklist_items}
+
+Return JSON with schema:
+{{
+  "summary": {{
+    "compliant": int, "partial": int, "missing": int,
+    "overall_risk": "LOW"|"MEDIUM"|"HIGH"
+  }},
+  "items": [
+    {{
+      "id": <string|int>,
+      "title": <string>,
+      "status": "COMPLIANT"|"PARTIAL"|"MISSING",
+      "evidence": [<short quotes>],
+      "risk": "LOW"|"MEDIUM"|"HIGH",
+      "recommendation": <string>,
+      "location_hint": <string|null>
+    }}
+  ]
+}}
+STRICT JSON. No commentary.
+""".strip()
+
+    last_err = ""
+    for _ in range(MAX_RETRIES):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_query}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+            content = resp.choices[0].message.content
+            return json.loads(content)
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(1.5)
+    return {
+        "summary": {"compliant": 0, "partial": 0, "missing": len(checklist_items), "overall_risk": "HIGH"},
+        "items": [],
+        "_error": f"LLM comparison failed: {last_err}"
+    }
+
+
+def generate_ta_report_whole_doc(USER_UPLOADED_FILE_PATH: str,
+                                 checklist_path: str,
+                                 mode: str = "fast"):
+    """
+    Generate a report by comparing the entire TA with a checklist (no RAG).
+    mode: "fast" (shorter text) or "thorough" (longer context).
+    """
+    raw_text = load_and_extract_pdf_text(USER_UPLOADED_FILE_PATH)
+    max_chars = 80_000 if mode == "fast" else 120_000
+    ta_comp = compress_ta_text(raw_text, max_chars=max_chars)
+    checklist = load_checklist(checklist_path)
+    result_json = compare_ta_with_checklist_whole(ta_comp, checklist)
+
+    summary = result_json.get("summary", {})
+    md_parts = [
+        "### Summary",
+        f"- ✅ Compliant: {summary.get('compliant', 0)}",
+        f"- 🟡 Partial: {summary.get('partial', 0)}",
+        f"- ❌ Missing: {summary.get('missing', 0)}",
+        f"- Overall Risk: **{summary.get('overall_risk', 'N/A')}**",
+        "---"
+    ]
+
+    for item in result_json.get("items", []):
+        md_parts.append(
+f"""**[{item.get('status','')}] {item.get('title','(no title)')}**  
+- Risk: **{item.get('risk','')}**  
+- Location: {item.get('location_hint','N/A')}  
+- Evidence: {("; ".join(item.get('evidence', [])[:3]) or '—')}  
+- Recommendation: {item.get('recommendation','—')}
+"""
+        )
+
+    final_md = "\n\n".join(md_parts) if md_parts else "No findings."
+    return final_md, result_json

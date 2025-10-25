@@ -17,7 +17,8 @@ from backend_utils import (
     answer_contextual_question_openai,
     ideal_clauses_retriever,
     general_qa_retriever,
-    review_report
+    review_report, 
+    initialize_qa_resources
 )
 
 # Load environment variables
@@ -183,6 +184,11 @@ def create_sidebar():
         
         if env_api_key:
             st.success("✅ API Key loaded")
+            # Initialize OpenAI client for backend utils
+            try:
+                initialize_qa_resources(env_api_key)
+            except Exception as _e:
+                st.warning(f"⚠️ OpenAI init failed: {_e}")
         else:
             api_key = st.text_input(
                 "OpenAI API Key:",
@@ -192,10 +198,46 @@ def create_sidebar():
             
             if api_key:
                 os.environ["OPENAI_API_KEY"] = api_key
+                # Initialize OpenAI client for backend utils
+                try:
+                    initialize_qa_resources(api_key)
+                except Exception as _e:
+                    st.warning(f"⚠️ OpenAI init failed: {_e}")
                 st.success("✅ API Key configured")
             else:
                 st.warning("⚠️ Please enter your OpenAI API Key")
         
+        st.markdown("---")
+
+        # === Analysis Engine ===
+        st.subheader("Analysis Engine")
+        analysis_mode = st.radio(
+            "Choose engine",
+            ["Fast (Whole-Doc, No Index)", "Indexed (RAG1)"],
+            index=0,
+            key="analysis_mode_radio"
+        )
+        st.session_state.analysis_mode = analysis_mode  # persist choice
+
+        # Checklist path (only for Whole-Doc)
+        default_checklist = "./checklist/checklist.csv"  # adjust to your repo
+        checklist_path = st.text_input(
+            "Checklist file (.csv or .json)",
+            value=default_checklist,
+            help="Used only in Fast (Whole-Doc) mode",
+            key="checklist_path_input"
+        )
+        st.session_state.checklist_path = checklist_path
+
+        detail_level = st.selectbox(
+            "Whole-Doc detail level",
+            ["fast", "thorough"],
+            index=0,
+            help="Used only in Whole-Doc mode",
+            key="detail_level_select"
+        )
+        st.session_state.detail_level = detail_level
+
         st.markdown("---")
         
         # Document info
@@ -386,10 +428,42 @@ if st.session_state.conversation_chain:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
                         tmp_file.write(uploaded_content)
                         temp_file_path = tmp_file.name
-                    report, review_prompt = generate_ta_report(USER_UPLOADED_FILE_PATH=temp_file_path, ideal_clauses_retriever=st.session_state.get("ideal_clauses_retriever"))
-                    st.session_state.verification_results = report
-                    st.session_state.rag_results = review_report(review_prompt)
-                    st.success("✅ Contract analysis completed!")
+                        
+                    analysis_mode = st.session_state.get("analysis_mode", "Fast (Whole-Doc, No Index)")
+                    if str(analysis_mode).startswith("Fast"):
+                        # Whole-Doc (no RAG)
+                        from backend_utils import generate_ta_report_whole_doc
+                        checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
+                        detail_level = st.session_state.get("detail_level", "fast")
+
+                        if not os.path.exists(checklist_path):
+                            st.error(f"Checklist not found: {checklist_path}")
+                            return
+
+                        report_md, raw_json = generate_ta_report_whole_doc(
+                            USER_UPLOADED_FILE_PATH=temp_file_path,
+                            checklist_path=checklist_path,
+                            mode=detail_level
+                        )
+                        st.session_state.verification_results = report_md
+                        st.session_state.rag_results = None
+                        st.success("✅ Contract analysis completed! (Whole-Doc)")
+                    else:
+                        # Indexed RAG1 (original flow)
+                        from backend_utils import generate_ta_report, review_report
+                        ideal_retriever = st.session_state.get("ideal_clauses_retriever", None)
+                        if ideal_retriever is None:
+                            st.error("RAG1 index not loaded. Please build/load the Ideal Clauses index.")
+                            return
+
+                        report, review_prompt = generate_ta_report(
+                            USER_UPLOADED_FILE_PATH=temp_file_path,
+                            ideal_clauses_retriever=ideal_retriever
+                        )
+                        st.session_state.verification_results = report
+                        st.session_state.rag_results = review_report(review_prompt)
+                        st.success("✅ Contract analysis completed! (RAG1)")
+                    
                 except Exception as e:
                     st.error(f"❌ Analysis failed: {str(e)}")
                     st.session_state.verification_results = None
