@@ -7,6 +7,7 @@ venv/
 
 # Just unwanted I guess 
 .ipynb_checkpoints/
+__pycache__/
 .DS_Store
 *.xlsx
 *.csv
@@ -14,6 +15,8 @@ venv/
 *.ipynb
 *.txt
 TA_template/.DS_Store
+TA_template/TA_checklist.pdf
+streamlit/__pycache__/backend_utils.cpython-312.pyc
 
 # macOS
 .DS_Store

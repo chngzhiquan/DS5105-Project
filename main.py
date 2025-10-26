@@ -18,7 +18,8 @@ from backend_utils import (
     ideal_clauses_retriever,
     general_qa_retriever,
     review_report, 
-    initialize_qa_resources
+    initialize_qa_resources,
+    generate_ta_report_whole_doc
 )
 
 # Load environment variables
@@ -432,7 +433,6 @@ if st.session_state.conversation_chain:
                     analysis_mode = st.session_state.get("analysis_mode", "Fast (Whole-Doc, No Index)")
                     if str(analysis_mode).startswith("Fast"):
                         # Whole-Doc (no RAG)
-                        from backend_utils import generate_ta_report_whole_doc
                         checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
                         detail_level = st.session_state.get("detail_level", "fast")
 
@@ -603,7 +603,7 @@ def handle_suggested_question(question: str):
     past_messages_for_llm = [
         {"role":msg["role"], "content":msg["content"]} 
         for msg in st.session_state.messages
-        if msg["role"] == ["user", "assistant"] and msg["content"]
+        if msg["role"] in ("user", "assistant") and msg["content"]
     ]
     
     # Implement chatbot response
