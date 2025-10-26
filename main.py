@@ -221,9 +221,9 @@ def create_sidebar():
         st.session_state.analysis_mode = analysis_mode  # persist choice
 
         # Checklist path (only for Whole-Doc)
-        default_checklist = "./checklist/checklist.csv"  # adjust to your repo
+        default_checklist = "./TA_template/TA_checklist.pdf"  # adjust to your repo
         checklist_path = st.text_input(
-            "Checklist file (.csv or .json)",
+            "Checklist file (.pdf)",
             value=default_checklist,
             help="Used only in Fast (Whole-Doc) mode",
             key="checklist_path_input"
@@ -433,7 +433,7 @@ if st.session_state.conversation_chain:
                     analysis_mode = st.session_state.get("analysis_mode", "Fast (Whole-Doc, No Index)")
                     if str(analysis_mode).startswith("Fast"):
                         # Whole-Doc (no RAG)
-                        checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
+                        checklist_path = st.session_state.get("checklist_path", "./TA_template/TA_checklist.pdf")
                         detail_level = st.session_state.get("detail_level", "fast")
 
                         if not os.path.exists(checklist_path):
