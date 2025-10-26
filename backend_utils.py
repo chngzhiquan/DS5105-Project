@@ -424,10 +424,7 @@ except Exception as e:
 
 # --- RAG 2: General Q&A Configuration ---
 GENERAL_QA_FAISS = os.path.join(
-    os.makedirs(IDEAL_CLAUSES_FAISS, exist_ok=True),
-    os.makedirs(GENERAL_QA_FAISS, exist_ok=True),
     BACKEND_SCRIPT_DIR,
-    "..",                     # Moves to DS5105-PROJECT/
     "faiss_index_general_qa" # Finds the folder
 )
 # K is already defined
