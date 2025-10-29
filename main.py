@@ -221,7 +221,7 @@ def create_sidebar():
         st.session_state.analysis_mode = analysis_mode  # persist choice
 
         # Checklist path (only for Whole-Doc)
-        default_checklist = "./TA_template/TA_checklist.pdf"  # adjust to your repo
+        default_checklist = "./checklist/checklist.csv"  
         checklist_path = st.text_input(
             "Checklist file (.pdf)",
             value=default_checklist,
