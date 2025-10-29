@@ -433,7 +433,7 @@ if st.session_state.conversation_chain:
                     analysis_mode = st.session_state.get("analysis_mode", "Fast (Whole-Doc, No Index)")
                     if str(analysis_mode).startswith("Fast"):
                         # Whole-Doc (no RAG)
-                        checklist_path = st.session_state.get("checklist_path", "./TA_template/TA_checklist.pdf")
+                        checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
                         detail_level = st.session_state.get("detail_level", "fast")
 
                         if not os.path.exists(checklist_path):
