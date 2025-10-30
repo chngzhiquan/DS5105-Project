@@ -899,7 +899,7 @@ def main():
     st.markdown("---")
 
     # Section 4: RAG Verification
-    create_rag_verification_section()
+    # create_rag_verification_section()
     
     st.markdown("---")
     
