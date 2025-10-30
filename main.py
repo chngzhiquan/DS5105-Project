@@ -732,7 +732,7 @@ if st.session_state.vectorstore:
 def create_export_section():
     """Section 5: Export Results"""
     
-    st.markdown('<div class="section-header">📥 5. Export Analysis Report</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">📥 4. Export Analysis Report</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload and analyze a document first to enable export")
@@ -901,7 +901,7 @@ def main():
     # Section 4: RAG Verification
     # create_rag_verification_section()
     
-    st.markdown("---")
+    #st.markdown("---")
     
     # Section 5: Export
     create_export_section()
