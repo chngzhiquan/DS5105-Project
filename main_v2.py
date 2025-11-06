@@ -39,6 +39,7 @@ try:
     from langchain_community.chat_models import ChatOpenAI
     from langchain.chains import ConversationalRetrievalChain
     from langchain.memory import ConversationBufferMemory
+    from backend_utils import translate_document
     import openai
     LANGCHAIN_AVAILABLE = True
 except ImportError:
@@ -732,7 +733,7 @@ if st.session_state.vectorstore:
 def create_translation_section():
     """Section 5: Document Translation"""
     
-    st.markdown('<div class="section-header">🌐 5. Translation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">5. Translation</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable translation")
@@ -749,45 +750,62 @@ def create_translation_section():
     target_language = st.selectbox(
         "Select target language:",
         ["English", "Indonesian", "Chinese", "Spanish", "French", "German"],
-        index=1
+        index=1,
+        key="target_language"  # store in session_state automatically
     )
     
-    # Translate button
+    # Translate button inside function
     if st.button("🌍 Translate Document", type="primary"):
         uploaded_content = st.session_state.get('uploaded_file_content')
         if not uploaded_content:
             st.error("❌ No document content available for translation")
-            return
-        
-        with st.spinner(f"Translating document to {target_language}..."):
-            try:
-                from backend_utils import translate_document  # pastikan fungsi ada
-                translated_text = translate_document(
-                    document_bytes=uploaded_content,
-                    target_language=target_language
-                )
-                st.session_state.translated_text = translated_text
-                st.success(f"✅ Document translated to {target_language}!")
-            except Exception as e:
-                st.error(f"❌ Translation failed: {str(e)}")
-    
-    # Display translation if available
-    if st.session_state.get("translated_text"):
+        else:
+            with st.spinner(f"Translating document to {st.session_state.target_language}..."):
+                try:
+                    from backend_utils import translate_document
+                    # LANGUAGE MAPPING
+                    language_map = {
+                        "Chinese": "Mandarin",
+                        "English": "English",
+                        "Indonesian": "Indonesian",
+                        "Spanish": "Spanish",
+                        "French": "French",
+                        "German": "German"
+                    }
+                    mapped_language = language_map.get(st.session_state.target_language, st.session_state.target_language)
+
+                    # Save temp file
+                    suffix = ".pdf" if st.session_state.uploaded_file_name.lower().endswith(".pdf") else ".docx"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                        tmp_file.write(uploaded_content)
+                        tmp_file_path = tmp_file.name
+
+                    translations = translate_document(tmp_file_path, [mapped_language])
+                    
+                    if "error" in translations:
+                        st.error(f"❌ Translation failed: {translations['error']}")
+                        st.session_state.translated_text = None # Hapus hasil terjemahan lama
+                    else:
+                        st.session_state.translated_text = translations.get(mapped_language, "Translation failed (Key not found after success)")
+                        st.success(f"✅ Document translated to {st.session_state.target_language}!")
+
+                except Exception as e:
+                    st.error(f"❌ Translation failed: {str(e)}")
+                    st.session_state.translated_text = None # Hapus juga jika ada error di main.py
+
+    # Display translation + download
+    translated_text = st.session_state.get("translated_text")
+    if translated_text:
         st.markdown("---")
-        st.markdown(f"**📄 Translation Preview ({target_language}):**")
-        st.text_area(
-            "Translated Document",
-            st.session_state.translated_text,
-            height=400
+        st.markdown(f"**📄 Translation Preview ({st.session_state.target_language}):**")
+        st.text_area("Translated Document", translated_text, height=400)
+
+        st.download_button(
+            label=f"📥 Download Translated Document ({st.session_state.target_language})",
+            data=translated_text,
+            file_name=f"{st.session_state.uploaded_file_name}_translated_{st.session_state.target_language}.txt",
+            mime="text/plain"
         )
-        
-        if st.button("📥 Download Translated Document", type="secondary"):
-            st.download_button(
-                label=f"Download Translated Document ({target_language})",
-                data=st.session_state.translated_text,
-                file_name=f"{st.session_state.uploaded_file_name}_translated_{target_language}.txt",
-                mime="text/plain"
-            )
 
 def create_export_section():
     """Section 6: Export Results"""
@@ -983,9 +1001,9 @@ def main():
     create_sidebar()
     
     # Check dependencies
-    if not LANGCHAIN_AVAILABLE:
-        st.error("⚠️ Required libraries not installed. Please install: `pip install streamlit langchain langchain-community openai pypdf faiss-cpu python-dotenv`")
-        st.stop()
+    #if not LANGCHAIN_AVAILABLE:
+        #st.error("⚠️ Required libraries not installed. Please install: `pip install streamlit langchain langchain-community openai pypdf faiss-cpu python-dotenv`")
+        #st.stop()
     
     # Check API key
     if not os.getenv("OPENAI_API_KEY"):

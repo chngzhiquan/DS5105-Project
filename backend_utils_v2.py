@@ -438,48 +438,67 @@ except Exception as e:
     general_qa_retriever = None
 
 
-# --- Add translation features ---
-def translate_text(text: str, target_languages: list) -> dict:
+# --- Add translation for documents ---
+from io import BytesIO
+import PyPDF2
+import docx  
+from langchain.chat_models import ChatOpenAI
+
+# --- CHANGE THE FUNCTION SIGNATURE ---
+# Accept a file_path (string), not bytes
+def translate_document(file_path: str, target_languages: list) -> dict:
     """
-    Translate the input text into multiple target languages using OpenAI LLM.
-    
+    Translate the content of a PDF or DOCX document from a file path using OpenAI LLM.
+
     Args:
-        text: Original English text
-        target_languages: List of target languages e.g., ["English", "Mandarin", "Malay", "Tamil", "Indonesian"]
-    
+        file_path: The file path to the uploaded document
+        target_languages: List of target languages, e.g., ["Indonesian", "Mandarin"]
+
     Returns:
-        Dictionary with language as key and translated text as value
+        dict: language -> translated text, or {"error": "message"}
     """
-    global client, LLM_MODEL
-    translations = {}
+    if not target_languages or not isinstance(target_languages, list):
+        return {"error": "target_languages must be a non-empty list of languages."}
 
-    for lang in target_languages:
-        if lang.lower() == "english":
-            translations[lang] = text  # skip translation
-            continue
+    try:
+        text = ""
+        
+        # --- ADD LOGIC TO READ THE FILE FROM THE PATH ---
+        if file_path.lower().endswith(".pdf"):
+            # Open the file path in read-binary mode
+            with open(file_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                text = "\n".join([p.extract_text() or "" for p in reader.pages])
+        
+        elif file_path.lower().endswith(".docx"):
+            # Use the docx library to read the file path
+            document = docx.Document(file_path)
+            text = "\n".join([para.text for para in document.paragraphs])
+            
+        else:
+            return {"error": "Unsupported file type. Only .pdf and .docx are supported."}
+        # --- END OF FILE READING LOGIC ---
 
-        system_instruction = f"You are a professional legal translator. Translate the following text to {lang} while keeping legal meaning precise."
+        if not text.strip():
+            # This catches scanned PDFs (image-based)
+            return {"error": "File is empty or text could not be extracted (check if PDF is scan/image)."}
 
-        user_prompt = f"""
-        Translate this text:
+        # Initialize LLM
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 
-        {text}
-        """
+        translations = {}
+        for lang in target_languages:
+            prompt = f"Translate the following text into {lang}:\n\n{text}"
+            
+            # Use .invoke() - this is the more modern way in LangChain
+            response = llm.invoke(prompt) 
+            translations[lang] = response.content
 
-        try:
-            response = client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.0
-            )
-            translations[lang] = response.choices[0].message.content.strip()
-        except Exception as e:
-            translations[lang] = f"Translation failed: {e}"
+        return translations
 
-    return translations
+    except Exception as e:
+        # A more general error message
+        return {"error": f"Failed to process document: {str(e)}"}
 
 # --------------------------------------------------------------------------------
 
@@ -851,7 +870,7 @@ f"""**[{item.get('status','')}] {item.get('title','(no title)')}**
 
     # --- DEFAULT LANGUAGES FOR TRANSLATION ---
     if target_languages is None:
-        target_languages = ["Indonesian", "Malay", "Tamil", "Mandarin"]  #can add more
+        target_languages = ["English","Indonesian", "Malay", "Tamil", "Mandarin"]  #can add more
 
     # --- AUTOMATIC TRANSLATION ---
     translations = translate_text(final_md, target_languages)
