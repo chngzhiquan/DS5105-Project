@@ -57,21 +57,24 @@ def setup_custom_css():
     """Configure custom CSS for better styling"""
     st.markdown("""
     <style>
+    /* Header */
     .main-header {
         font-size: 3rem;
-        color: #2E86AB;
+        color: #0D3B66; /* dark blue */
         text-align: center;
         margin-bottom: 1rem;
         font-weight: bold;
     }
     .subtitle {
         font-size: 1.2rem;
-        color: #666;
+        color: #1E6091; /* medium blue */
         text-align: center;
         margin-bottom: 2rem;
     }
+
+    /* Section header with blue gradient */
     .section-header {
-        background: linear-gradient(90deg, #2E86AB 0%, #A23B72 100%);
+        background: linear-gradient(90deg, #1E6091 0%, #4DA8DA 100%);
         color: white;
         padding: 1rem;
         border-radius: 10px;
@@ -79,52 +82,67 @@ def setup_custom_css():
         font-size: 1.3rem;
         font-weight: bold;
     }
+
+    /* Result boxes */
     .result-box {
-        background-color: #f8f9fa;
-        border-left: 5px solid #2E86AB;
+        background-color: #D0E6F7; /* light blue */
+        border-left: 5px solid #1E6091; /* medium blue */
         padding: 1.5rem;
         border-radius: 8px;
         margin: 1rem 0;
+        color: #000;
     }
     .warning-box {
-        background-color: #fff3cd;
-        border-left: 5px solid #ffc107;
+        background-color: #FFF4E6;
+        border-left: 5px solid #FFB400; /* yellow accent */
         padding: 1rem;
         border-radius: 8px;
         margin: 1rem 0;
     }
     .success-box {
-        background-color: #d4edda;
-        border-left: 5px solid #28a745;
+        background-color: #D6F5D6; /* soft green */
+        border-left: 5px solid #0D3B66;
         padding: 1rem;
         border-radius: 8px;
         margin: 1rem 0;
     }
+
+    /* Chat messages */
     .chat-message {
         padding: 1rem;
         border-radius: 10px;
         margin: 0.5rem 0;
     }
     .user-message {
-        background-color: #E3F2FD;
-        border-left: 4px solid #2196F3;
+        background-color: #A9D6E5; /* light blue */
+        border-left: 4px solid #0D3B66; /* dark blue */
         color: #000000;
     }
     .assistant-message {
-        background-color: #F3E5F5;
-        border-left: 4px solid #9C27B0;
-        color: #000000;
+        background-color: #4DA8DA; /* medium blue */
+        border-left: 4px solid #0D3B66; /* dark blue */
+        color: #FFFFFF;
     }
+
+    /* Buttons */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
         font-weight: 500;
+        background-color: #1E6091;
+        color: white;
     }
+    .stButton>button:hover {
+        background-color: #0D3B66;
+        color: white;
+    }
+
+    /* Upload section */
     .upload-section {
-        background-color: #f0f8ff;
+        background-color: #E0F1FA; /* very light blue */
         padding: 2rem;
         border-radius: 12px;
-        border: 2px dashed #2E86AB;
+        border: 2px dashed #1E6091;
         color: #000000;
     }
     </style>
@@ -175,7 +193,7 @@ def create_sidebar():
     """Create sidebar with configuration and info"""
     
     with st.sidebar:
-        st.image("https://via.placeholder.com/200x80/2E86AB/FFFFFF?text=OneCheck%26Chat", use_container_width=True)
+        st.image("Logo.jpeg", use_container_width=True)
         
         st.markdown("---")
         
@@ -222,7 +240,7 @@ def create_sidebar():
         st.session_state.analysis_mode = analysis_mode  # persist choice
 
         # Checklist path (only for Whole-Doc)
-        default_checklist = "./checklist/checklist.csv"  # adjust to your repo
+        default_checklist = os.path.expanduser("~/Desktop/DS5105-Project/checklist/checklist.csv")  # adjust to your repo
         checklist_path = st.text_input(
             "Checklist file (.csv)",
             value=default_checklist,
@@ -733,7 +751,7 @@ if st.session_state.vectorstore:
 def create_translation_section():
     """Section 5: Document Translation"""
     
-    st.markdown('<div class="section-header">5. Translation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🌐 5. Translation</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable translation")
