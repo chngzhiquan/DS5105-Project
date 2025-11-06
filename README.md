@@ -109,6 +109,7 @@ OPENAI_API_KEY="sk-your-secret-openai-api-key"
 | Fast Mode             | `./checklist/checklist.csv`  | Compliance checklist     |
 
 **📁 Folder Structure Example:**
+```
 project_root/
 ├── TA_template/
 │   ├── ideal_clause_1.pdf
@@ -118,6 +119,7 @@ project_root/
 ├── Database Requirements.xlsx
 ├── main.py
 └── .env
+```
 
 ### 🧠 **3. Build Vector Databases**
 **→ Run the notebook**
