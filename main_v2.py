@@ -802,14 +802,14 @@ def create_translation_section():
                     
                     if "error" in translations:
                         st.error(f"❌ Translation failed: {translations['error']}")
-                        st.session_state.translated_text = None # Hapus hasil terjemahan lama
+                        st.session_state.translated_text = None 
                     else:
                         st.session_state.translated_text = translations.get(mapped_language, "Translation failed (Key not found after success)")
                         st.success(f"✅ Document translated to {st.session_state.target_language}!")
 
                 except Exception as e:
                     st.error(f"❌ Translation failed: {str(e)}")
-                    st.session_state.translated_text = None # Hapus juga jika ada error di main.py
+                    st.session_state.translated_text = None 
 
     # Display translation + download
     translated_text = st.session_state.get("translated_text")
