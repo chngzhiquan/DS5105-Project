@@ -267,9 +267,9 @@ def create_sidebar():
             st.markdown("""
             ### Steps:
             1. **Upload** tenancy agreement PDF
-            2. **Check** AI contract analysis
-            3. **Chat** with the Chatbot
-            4. **Translate** to your language of choice
+            2. **Translate** to your language of choice
+            3. **Check** AI contract analysis
+            4. **Chat** with the Chatbot
             5. **Export** results
             
             ### Requirements:
@@ -338,10 +338,86 @@ def process_uploaded_document(uploaded_file) -> bool:
         st.error(f"Error: {str(e)}")
         return False
 
-def create_contract_verification_section():
-    """Section 2: AI Contract Verification"""
+def create_translation_section():
+    """Section 2: Document Translation"""
     
-    st.markdown('<div class="section-header">🤖 2. AI Contract Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🌐 2. Translation</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.uploaded_file_name:
+        st.info("📋 Upload a document first to enable translation")
+        return
+    
+    st.markdown("""
+    <div class="result-box" style="color:black;">
+    <h4>🈸 Translate Document</h4>
+    <p>Translate your tenancy agreement into a target language using AI.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Language selection
+    target_language = st.selectbox(
+        "Select target language:",
+        ["English", "Indonesian", "Chinese", "Spanish", "French", "German"],
+        index=1,
+        key="target_language"  # store in session_state automatically
+    )
+    
+    # Translate button inside function
+    if st.button("🌍 Translate Document", type="primary"):
+        uploaded_content = st.session_state.get('uploaded_file_content')
+        if not uploaded_content:
+            st.error("❌ No document content available for translation")
+        else:
+            with st.spinner(f"Translating document to {st.session_state.target_language}..."):
+                try:
+                    # LANGUAGE MAPPING
+                    language_map = {
+                        "Chinese": "Mandarin",
+                        "English": "English",
+                        "Indonesian": "Indonesian",
+                        "Spanish": "Spanish",
+                        "French": "French",
+                        "German": "German"
+                    }
+                    mapped_language = language_map.get(st.session_state.target_language, st.session_state.target_language)
+
+                    # Save temp file
+                    suffix = ".pdf" if st.session_state.uploaded_file_name.lower().endswith(".pdf") else ".docx"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                        tmp_file.write(uploaded_content)
+                        tmp_file_path = tmp_file.name
+
+                    translations = translate_document(tmp_file_path, [mapped_language])
+                    
+                    if "error" in translations:
+                        st.error(f"❌ Translation failed: {translations['error']}")
+                        st.session_state.translated_text = None 
+                    else:
+                        st.session_state.translated_text = translations.get(mapped_language, "Translation failed (Key not found after success)")
+                        st.success(f"✅ Document translated to {st.session_state.target_language}!")
+
+                except Exception as e:
+                    st.error(f"❌ Translation failed: {str(e)}")
+                    st.session_state.translated_text = None 
+
+    # Display translation + download
+    translated_text = st.session_state.get("translated_text")
+    if translated_text:
+        st.markdown("---")
+        st.markdown(f"**📄 Translation Preview ({st.session_state.target_language}):**")
+        st.text_area("Translated Document", translated_text, height=400)
+
+        st.download_button(
+            label=f"📥 Download Translated Document ({st.session_state.target_language})",
+            data=translated_text,
+            file_name=f"{st.session_state.uploaded_file_name}_translated_{st.session_state.target_language}.txt",
+            mime="text/plain"
+        )
+
+def create_contract_verification_section():
+    """Section 3: AI Contract Verification"""
+    
+    st.markdown('<div class="section-header">🤖 3. AI Contract Analysis</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable contract analysis")
@@ -495,9 +571,9 @@ if st.session_state.conversation_chain:
             st.info("Detailed analysis will be displayed here")
 
 def create_chat_section():
-    """Section 3: Chatbot"""
+    """Section 4: Chatbot"""
     
-    st.markdown('<div class="section-header">💬 3. Chatbot</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">💬 4. Chatbot</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable chat")
@@ -651,82 +727,6 @@ def handle_user_question(question: str):
             st.session_state.messages.pop()  # Remove last user message on failure
     st.rerun()
 
-def create_translation_section():
-    """Section 4: Document Translation"""
-    
-    st.markdown('<div class="section-header">🌐 4. Translation</div>', unsafe_allow_html=True)
-    
-    if not st.session_state.uploaded_file_name:
-        st.info("📋 Upload a document first to enable translation")
-        return
-    
-    st.markdown("""
-    <div class="result-box" style="color:black;">
-    <h4>🈸 Translate Document</h4>
-    <p>Translate your tenancy agreement into a target language using AI.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Language selection
-    target_language = st.selectbox(
-        "Select target language:",
-        ["English", "Indonesian", "Chinese", "Spanish", "French", "German"],
-        index=1,
-        key="target_language"  # store in session_state automatically
-    )
-    
-    # Translate button inside function
-    if st.button("🌍 Translate Document", type="primary"):
-        uploaded_content = st.session_state.get('uploaded_file_content')
-        if not uploaded_content:
-            st.error("❌ No document content available for translation")
-        else:
-            with st.spinner(f"Translating document to {st.session_state.target_language}..."):
-                try:
-                    # LANGUAGE MAPPING
-                    language_map = {
-                        "Chinese": "Mandarin",
-                        "English": "English",
-                        "Indonesian": "Indonesian",
-                        "Spanish": "Spanish",
-                        "French": "French",
-                        "German": "German"
-                    }
-                    mapped_language = language_map.get(st.session_state.target_language, st.session_state.target_language)
-
-                    # Save temp file
-                    suffix = ".pdf" if st.session_state.uploaded_file_name.lower().endswith(".pdf") else ".docx"
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
-                        tmp_file.write(uploaded_content)
-                        tmp_file_path = tmp_file.name
-
-                    translations = translate_document(tmp_file_path, [mapped_language])
-                    
-                    if "error" in translations:
-                        st.error(f"❌ Translation failed: {translations['error']}")
-                        st.session_state.translated_text = None 
-                    else:
-                        st.session_state.translated_text = translations.get(mapped_language, "Translation failed (Key not found after success)")
-                        st.success(f"✅ Document translated to {st.session_state.target_language}!")
-
-                except Exception as e:
-                    st.error(f"❌ Translation failed: {str(e)}")
-                    st.session_state.translated_text = None 
-
-    # Display translation + download
-    translated_text = st.session_state.get("translated_text")
-    if translated_text:
-        st.markdown("---")
-        st.markdown(f"**📄 Translation Preview ({st.session_state.target_language}):**")
-        st.text_area("Translated Document", translated_text, height=400)
-
-        st.download_button(
-            label=f"📥 Download Translated Document ({st.session_state.target_language})",
-            data=translated_text,
-            file_name=f"{st.session_state.uploaded_file_name}_translated_{st.session_state.target_language}.txt",
-            mime="text/plain"
-        )
-
 def create_export_section():
     """Section 5: Export Results"""
     
@@ -824,7 +824,7 @@ This is a placeholder preview. Export functionality to be implemented.
 - Status: {st.session_state.verification_results if st.session_state.verification_results else 'Not run'}
 
 ## Chat History
-- Messages: {len(st.session_state.messages)}
+- Messages: {st.session_state.messages if st.session_state.messages else 'Not run'}
 
 ---
 *Generated by LeaseOwl*
@@ -878,21 +878,21 @@ def main():
     
     # Section 1: Upload
     create_upload_section()
+
+    st.markdown("---")
+    
+    # Section 2: Translation
+    create_translation_section()
     
     st.markdown("---")
     
-    # Section 2: Contract Verification
+    # Section 3: Contract Verification
     create_contract_verification_section()
     
     st.markdown("---")
     
-    # Section 3 : Chatbot
+    # Section 4: Chatbot
     create_chat_section()
-    
-    st.markdown("---")
-    
-    # Section 4: Translation
-    create_translation_section()
 
     st.markdown("---")
 
