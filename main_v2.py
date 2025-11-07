@@ -42,7 +42,7 @@ except ImportError:
 # Page configuration
 st.set_page_config(
     page_title="LeaseOwl",
-    page_icon="📋",
+    page_icon=" 🦉",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -863,7 +863,7 @@ def main():
     initialize_session_state()
     
     # Header
-    st.markdown('<h1 class="main-header">📋 LeaseOwl</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🦉 LeaseOwl</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">AI-Powered Tenancy Agreement Analyzer & Chat Assistant</p>', unsafe_allow_html=True)
     
     # Sidebar
