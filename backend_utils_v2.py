@@ -873,6 +873,6 @@ f"""**[{item.get('status','')}] {item.get('title','(no title)')}**
         target_languages = ["English","Indonesian", "Malay", "Tamil", "Mandarin"]  #can add more
 
     # --- AUTOMATIC TRANSLATION ---
-    translations = translate_text(final_md, target_languages)
+    translations = translate_document(final_md, target_languages)
 
     return final_md, result_json, translations

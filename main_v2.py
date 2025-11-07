@@ -438,16 +438,14 @@ if st.session_state.conversation_chain:
                     if str(analysis_mode).startswith("Fast"):
                         # Whole-Doc (no RAG)
                         checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
-                        detail_level = st.session_state.get("detail_level", "fast")
 
                         if not os.path.exists(checklist_path):
                             st.error(f"Checklist not found: {checklist_path}")
                             return
 
-                        report_md, raw_json = generate_ta_report_whole_doc(
+                        report_md, raw_json, translations = generate_ta_report_whole_doc(
                             USER_UPLOADED_FILE_PATH=temp_file_path,
                             checklist_path=checklist_path,
-                            mode=detail_level
                         )
                         st.session_state.verification_results = report_md
                         st.session_state.rag_results = None
