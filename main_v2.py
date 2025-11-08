@@ -355,7 +355,7 @@ def create_translation_section():
     # Language selection
     target_language = st.selectbox(
         "Select target language:",
-        ["English", "Indonesian", "Traditional Chinese", "Thai", "Spanish", "French", "German"],
+        ["English", "Indonesian", "Thai", "Traditional Chinese", "Simplified Chinese", "Spanish", "French", "German"],
         index = 0,
         key="target_language"  # store in session_state automatically
     )
@@ -370,10 +370,11 @@ def create_translation_section():
                 try:
                     # LANGUAGE MAPPING
                     language_map = {
-                        "Traditional Chinese": "zh-tw",
                         "English": "en",
                         "Indonesian": "id",
                         "Thai": "th",
+                        "Traditional Chinese": "zh-tw",
+                        "Simplified Chinese": "zh-ch",
                         "Spanish": "es",
                         "French": "fr",
                         "German": "de"
