@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-OneCheck&Chat - Tenancy Agreement Analyzer
-AI-powered tenancy agreement verification and chat system
-
-Run with: streamlit run main.py
-"""
 
 import streamlit as st
 import os
@@ -12,13 +6,14 @@ from typing import Optional, List, Dict, Any
 import tempfile
 import base64
 from datetime import datetime
-from backend_utils import (
-    generate_ta_report,
-    answer_contextual_question_openai,
+from backend_utils_v2 import (
     ideal_clauses_retriever,
-    general_qa_retriever, 
+    general_qa_retriever,
     initialize_qa_resources,
-    generate_ta_report_whole_doc
+    answer_contextual_question_openai,
+    generate_ta_report_whole_doc,
+    generate_ta_report,
+    translate_document
 )
 
 # Load environment variables
@@ -45,8 +40,8 @@ except ImportError:
 
 # Page configuration
 st.set_page_config(
-    page_title="OneCheck&Chat",
-    page_icon="📋",
+    page_title="LeaseOwl",
+    page_icon=" 🦉",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -55,21 +50,24 @@ def setup_custom_css():
     """Configure custom CSS for better styling"""
     st.markdown("""
     <style>
+    /* Header */
     .main-header {
         font-size: 3rem;
-        color: #2E86AB;
+        color: #0D3B66; /* dark blue */
         text-align: center;
         margin-bottom: 1rem;
         font-weight: bold;
     }
     .subtitle {
         font-size: 1.2rem;
-        color: #666;
+        color: #1E6091; /* medium blue */
         text-align: center;
         margin-bottom: 2rem;
     }
+
+    /* Section header with blue gradient */
     .section-header {
-        background: linear-gradient(90deg, #2E86AB 0%, #A23B72 100%);
+        background: linear-gradient(90deg, #1E6091 0%, #4DA8DA 100%);
         color: white;
         padding: 1rem;
         border-radius: 10px;
@@ -77,52 +75,67 @@ def setup_custom_css():
         font-size: 1.3rem;
         font-weight: bold;
     }
+
+    /* Result boxes */
     .result-box {
-        background-color: #f8f9fa;
-        border-left: 5px solid #2E86AB;
+        background-color: #D0E6F7; /* light blue */
+        border-left: 5px solid #1E6091; /* medium blue */
         padding: 1.5rem;
         border-radius: 8px;
         margin: 1rem 0;
+        color: #000;
     }
     .warning-box {
-        background-color: #fff3cd;
-        border-left: 5px solid #ffc107;
+        background-color: #FFF4E6;
+        border-left: 5px solid #FFB400; /* yellow accent */
         padding: 1rem;
         border-radius: 8px;
         margin: 1rem 0;
     }
     .success-box {
-        background-color: #d4edda;
-        border-left: 5px solid #28a745;
+        background-color: #D6F5D6; /* soft green */
+        border-left: 5px solid #0D3B66;
         padding: 1rem;
         border-radius: 8px;
         margin: 1rem 0;
     }
+
+    /* Chat messages */
     .chat-message {
         padding: 1rem;
         border-radius: 10px;
         margin: 0.5rem 0;
     }
     .user-message {
-        background-color: #E3F2FD;
-        border-left: 4px solid #2196F3;
+        background-color: #A9D6E5; /* light blue */
+        border-left: 4px solid #0D3B66; /* dark blue */
         color: #000000;
     }
     .assistant-message {
-        background-color: #F3E5F5;
-        border-left: 4px solid #9C27B0;
-        color: #000000;
+        background-color: #4DA8DA; /* medium blue */
+        border-left: 4px solid #0D3B66; /* dark blue */
+        color: #FFFFFF;
     }
+
+    /* Buttons */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
         font-weight: 500;
+        background-color: #1E6091;
+        color: white;
     }
+    .stButton>button:hover {
+        background-color: #0D3B66;
+        color: white;
+    }
+
+    /* Upload section */
     .upload-section {
-        background-color: #f0f8ff;
+        background-color: #E0F1FA; /* very light blue */
         padding: 2rem;
         border-radius: 12px;
-        border: 2px dashed #2E86AB;
+        border: 2px dashed #1E6091;
         color: #000000;
     }
     </style>
@@ -138,6 +151,10 @@ def initialize_session_state():
     if "uploaded_file_content" not in st.session_state:
         st.session_state.uploaded_file_content = None
     
+    # Default language
+    if "target_language" not in st.session_state:
+        st.session_state.target_language = "English"
+    
     # RAG state
     # Ideal Clauses RAG retriever object (RAG 1)
     if "ideal_clauses_retriever" not in st.session_state:
@@ -146,9 +163,6 @@ def initialize_session_state():
     # General Q&A RAG retriever object (RAG 2)
     if "general_qa_retriever" not in st.session_state:
         st.session_state.general_qa_retriever = general_qa_retriever
-    
-    if "rag_results" not in st.session_state:
-        st.session_state.rag_results = None
     
     # Contract verification state
     if "verification_results" not in st.session_state:
@@ -173,7 +187,7 @@ def create_sidebar():
     """Create sidebar with configuration and info"""
     
     with st.sidebar:
-        st.image("https://via.placeholder.com/200x80/2E86AB/FFFFFF?text=OneCheck%26Chat", use_container_width=True)
+        st.image("Logo.jpeg", use_container_width=True)
         
         st.markdown("---")
         
@@ -213,14 +227,14 @@ def create_sidebar():
         st.subheader("Analysis Engine")
         analysis_mode = st.radio(
             "Choose engine",
-            ["Fast (Whole-Doc, No Index)", "Indexed (RAG1)"],
+            ["Fast", "Indexed (RAG)"],
             index=0,
             key="analysis_mode_radio"
         )
-        st.session_state.analysis_mode = analysis_mode  # persist choice
+        st.session_state.analysis_mode = analysis_mode  
 
         # Checklist path (only for Whole-Doc)
-        default_checklist = "./checklist/checklist.csv"  # adjust to your repo
+        default_checklist = os.path.expanduser("./checklist/checklist.csv") 
         checklist_path = st.text_input(
             "Checklist file (.csv)",
             value=default_checklist,
@@ -228,15 +242,6 @@ def create_sidebar():
             key="checklist_path_input"
         )
         st.session_state.checklist_path = checklist_path
-
-        detail_level = st.selectbox(
-            "Whole-Doc detail level",
-            ["fast", "thorough"],
-            index=0,
-            help="Used only in Whole-Doc mode",
-            key="detail_level_select"
-        )
-        st.session_state.detail_level = detail_level
 
         st.markdown("---")
         
@@ -249,7 +254,6 @@ def create_sidebar():
                 # Reset all states
                 st.session_state.uploaded_file_name = None
                 st.session_state.uploaded_file_content = None
-                st.session_state.rag_results = None
                 st.session_state.verification_results = None
                 st.session_state.messages = []
                 st.session_state.export_preview = None
@@ -262,9 +266,9 @@ def create_sidebar():
             st.markdown("""
             ### Steps:
             1. **Upload** tenancy agreement PDF
-            2. **Check** AI contract analysis
-            3. **Chat** with the Chatbot
-            4. **Review** RAG verification
+            2. **Translate** to your language of choice
+            3. **Check** AI contract analysis
+            4. **Chat** with the Chatbot
             5. **Export** results
             
             ### Requirements:
@@ -275,7 +279,7 @@ def create_sidebar():
         st.markdown("---")
         
         # About
-        st.caption("**OneCheck&Chat v1.0**")
+        st.caption("**LeaseOwl v1.0**")
         st.caption("Tenancy Agreement Analyzer")
         st.caption("© 2025 All rights reserved")
 
@@ -325,18 +329,93 @@ def process_uploaded_document(uploaded_file) -> bool:
     
     try:
         # Save file content
-        st.session_state.uploaded_file_content = uploaded_file.getvalue()
-        
+        st.session_state.uploaded_file_content = uploaded_file.getvalue()   
         return True
         
     except Exception as e:
         st.error(f"Error: {str(e)}")
         return False
 
-def create_contract_verification_section():
-    """Section 2: AI Contract Verification"""
+def create_translation_section():
+    """Section 2: Document Translation"""
     
-    st.markdown('<div class="section-header">🤖 2. AI Contract Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🌐 2. Translation</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.uploaded_file_name:
+        st.info("📋 Upload a document first to enable translation")
+        return
+    
+    st.markdown("""
+    <div class="result-box" style="color:black;">
+    <h4>🈸 Translate Document</h4>
+    <p>Translate your tenancy agreement into a target language using AI.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Language selection
+    target_language = st.selectbox(
+        "Select target language:",
+        ["English", "Indonesian", "Chinese", "Spanish", "French", "German"],
+        index=1,
+        key="target_language"  # store in session_state automatically
+    )
+    
+    # Translate button inside function
+    if st.button("🌍 Translate Document", type="primary"):
+        uploaded_content = st.session_state.get('uploaded_file_content')
+        if not uploaded_content:
+            st.error("❌ No document content available for translation")
+        else:
+            with st.spinner(f"Translating document to {st.session_state.target_language}..."):
+                try:
+                    # LANGUAGE MAPPING
+                    language_map = {
+                        "Chinese": "Mandarin",
+                        "English": "English",
+                        "Indonesian": "Indonesian",
+                        "Spanish": "Spanish",
+                        "French": "French",
+                        "German": "German"
+                    }
+                    mapped_language = language_map.get(st.session_state.target_language, st.session_state.target_language)
+
+                    # Save temp file
+                    suffix = ".pdf" if st.session_state.uploaded_file_name.lower().endswith(".pdf") else ".docx"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                        tmp_file.write(uploaded_content)
+                        tmp_file_path = tmp_file.name
+
+                    translations = translate_document(tmp_file_path, [mapped_language])
+                    
+                    if "error" in translations:
+                        st.error(f"❌ Translation failed: {translations['error']}")
+                        st.session_state.translated_text = None 
+                    else:
+                        st.session_state.translated_text = translations.get(mapped_language, "Translation failed (Key not found after success)")
+                        st.success(f"✅ Document translated to {st.session_state.target_language}!")
+
+                except Exception as e:
+                    st.error(f"❌ Translation failed: {str(e)}")
+                    st.session_state.translated_text = None 
+
+    # Display translation + download
+    translated_text = st.session_state.get("translated_text")
+    if translated_text:
+        st.markdown("---")
+        st.markdown(f"**📄 Translation Preview ({st.session_state.target_language}):**")
+        st.text_area("Translated Document", translated_text, height=400)
+
+        st.download_button(
+            label=f"📥 Download Translated Document ({st.session_state.target_language})",
+            data=translated_text,
+            file_name=f"{st.session_state.uploaded_file_name}_translated_{st.session_state.target_language}.txt",
+            mime="text/plain"
+        )
+
+def create_contract_verification_section():
+    """Section 3: AI Contract Verification"""
+    
+    st.markdown('<div class="section-header">🤖 3. AI Contract Analysis</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable contract analysis")
@@ -428,34 +507,29 @@ if st.session_state.conversation_chain:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
                         tmp_file.write(uploaded_content)
                         temp_file_path = tmp_file.name
-                        
+                    target_language = st.session_state.get("target_language", "English")    
                     analysis_mode = st.session_state.get("analysis_mode", "Fast (Whole-Doc, No Index)")
                     if str(analysis_mode).startswith("Fast"):
                         # Whole-Doc (no RAG)
                         checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
-                        detail_level = st.session_state.get("detail_level", "fast")
-
                         if not os.path.exists(checklist_path):
                             st.error(f"Checklist not found: {checklist_path}")
                             return
-
-                        report_md, raw_json = generate_ta_report_whole_doc(
+                        report_md = generate_ta_report_whole_doc(
                             USER_UPLOADED_FILE_PATH=temp_file_path,
                             checklist_path=checklist_path,
-                            mode=detail_level
+                            target_language=target_language
                         )
                         st.session_state.verification_results = report_md
-                        st.session_state.rag_results = None
                         st.success("✅ Contract analysis completed! (Whole-Doc)")
                     else:
                         # Indexed RAG1 (original flow)
-                        from backend_utils import generate_ta_report
                         ideal_retriever = st.session_state.get("ideal_clauses_retriever", None)
                         if ideal_retriever is None:
                             st.error("RAG1 index not loaded. Please build/load the Ideal Clauses index.")
                             return
 
-                        report, review_prompt = generate_ta_report(
+                        report = generate_ta_report(
                             USER_UPLOADED_FILE_PATH=temp_file_path,
                             ideal_clauses_retriever=ideal_retriever
                         )
@@ -476,24 +550,24 @@ if st.session_state.conversation_chain:
         st.markdown("**Analysis Results:**")
         
         # Placeholder for results display
-        result_tabs = st.tabs(["📋 Summary", "⚠️ Issues", "✅ Compliance", "📊 Details"])
+        result_tabs = st.tabs(["📋 Summary", "⚠️ Issues", "✅ Compliance", "📊 Recomendations"])
         
         with result_tabs[0]:
             st.markdown(st.session_state.verification_results)
 
         with result_tabs[1]:
-            st.markdown(st.session_state.rag_results)
+            st.markdown("Issues will be displayed here")
         
         with result_tabs[2]:
             st.info("Compliance status will be displayed here")
         
         with result_tabs[3]:
-            st.info("Detailed analysis will be displayed here")
+            st.info("Recomendations will be displayed here")
 
 def create_chat_section():
-    """Section 3: Chatbot"""
+    """Section 4: Chatbot"""
     
-    st.markdown('<div class="section-header">💬 3. Chatbot</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">💬 4. Chatbot</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable chat")
@@ -603,7 +677,7 @@ def handle_suggested_question(question: str):
         for msg in st.session_state.messages
         if msg["role"] in ("user", "assistant") and msg["content"]
     ]
-    
+    target_language = st.session_state.get("target_language","English")
     # Implement chatbot response
     with st.spinner("Thinking..."):
         try:
@@ -611,7 +685,8 @@ def handle_suggested_question(question: str):
                 user_question=question,
                 general_qa_retriever=st.session_state.general_qa_retriever,
                 ta_report=st.session_state.verification_results,
-                past_messages=past_messages_for_llm
+                past_messages=past_messages_for_llm,
+                target_language=target_language
             )
             st.session_state.messages.append({"role": "assistant", "content": response})
         except Exception as e:
@@ -632,6 +707,7 @@ def handle_user_question(question: str):
         for msg in st.session_state.messages
         if msg["role"] == ["user", "assistant"] and msg["content"]
     ]
+    target_language = st.session_state.get("target_language","English")
     # Implement chatbot response
     with st.spinner("Thinking..."):
         try:
@@ -639,7 +715,8 @@ def handle_user_question(question: str):
                 user_question=question,
                 general_qa_retriever=st.session_state.general_qa_retriever,
                 ta_report=st.session_state.verification_results,
-                past_messages=past_messages_for_llm
+                past_messages=past_messages_for_llm,
+                target_language=target_language
             )
             st.session_state.messages.append({"role": "assistant", "content": response})
         except Exception as e:
@@ -647,90 +724,10 @@ def handle_user_question(question: str):
             st.session_state.messages.pop()  # Remove last user message on failure
     st.rerun()
 
-def create_rag_verification_section():
-    """Section 4: RAG Verification"""
-    
-    st.markdown('<div class="section-header">🔍 4. RAG Verification</div>', unsafe_allow_html=True)
-    
-    if not st.session_state.get("uploaded_file_name"):
-        st.info("📋 Upload a document first to enable RAG verification")
-        return
-    
-    st.markdown("""
-    <div class="result-box" style="color:black;">
-    <h4>📊 Document Retrieval Quality Check</h4>
-    <p>This section will verify the quality of document retrieval using RAG (Retrieval-Augmented Generation).</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.write("**Verification Status:**")
-        
-        # Placeholder for RAG verification code
-        with st.expander("🔧 RAG Verification Code Space", expanded=False):
-            st.code("""
-# === RAG VERIFICATION CODE ===
-# TODO: Implement RAG verification logic here
-
-def verify_rag_quality(vectorstore):
-    '''
-    Verify the quality of document retrieval
-    
-    Returns:
-        dict: Verification results with metrics
-    '''
-    
-    # Sample test queries
-    test_queries = [
-        "What is the monthly rent?",
-        "What is the lease duration?",
-        "What are the tenant responsibilities?"
-    ]
-    
-    results = {
-        "retrieval_accuracy": 0.0,
-        "relevance_score": 0.0,
-        "coverage": 0.0,
-        "test_results": []
-    }
-    
-    # TODO: Implement actual verification
-    
-    return results
-
-# Run verification
-if st.session_state.vectorstore:
-    results = verify_rag_quality(st.session_state.vectorstore)
-    st.session_state.rag_results = results
-            """, language="python")
-    
-    with col2:
-        if st.button("▶️ Run Verification", type="primary"):
-            with st.spinner("Verifying RAG..."):
-                # TODO: Implement actual RAG verification
-                st.info("⏳ RAG verification ready for implementation")
-    
-    # Display results if available
-    if st.session_state.rag_results:
-        st.markdown("---")
-        st.markdown("**Verification Results:**")
-        st.markdown(st.session_state.rag_results)
-        
-        # # Placeholder results display
-        # col1, col2, col3 = st.columns(3)
-        # with col1:
-        #     st.metric("Retrieval Accuracy", "N/A", help="To be implemented")
-        # with col2:
-        #     st.metric("Relevance Score", "N/A", help="To be implemented")
-        # with col3:
-        #     st.metric("Coverage", "N/A", help="To be implemented")
-
 def create_export_section():
     """Section 5: Export Results"""
     
-    st.markdown('<div class="section-header">📥 4. Export Analysis Report</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">📥 5. Export Analysis Report</div>', unsafe_allow_html=True)
     
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload and analyze a document first to enable export")
@@ -824,10 +821,10 @@ This is a placeholder preview. Export functionality to be implemented.
 - Status: {st.session_state.verification_results if st.session_state.verification_results else 'Not run'}
 
 ## Chat History
-- Messages: {len(st.session_state.messages)}
+- Messages: {st.session_state.messages if st.session_state.messages else 'Not run'}
 
 ---
-*Generated by OneCheck&Chat*
+*Generated by LeaseOwl*
                 """
                 st.success("✅ Preview generated!")
     
@@ -863,16 +860,11 @@ def main():
     initialize_session_state()
     
     # Header
-    st.markdown('<h1 class="main-header">📋 OneCheck&Chat</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🦉 LeaseOwl</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">AI-Powered Tenancy Agreement Analyzer & Chat Assistant</p>', unsafe_allow_html=True)
     
     # Sidebar
     create_sidebar()
-    
-    # Check dependencies
-    if not LANGCHAIN_AVAILABLE:
-        st.error("⚠️ Required libraries not installed. Please install: `pip install streamlit langchain langchain-community openai pypdf faiss-cpu python-dotenv`")
-        st.stop()
     
     # Check API key
     if not os.getenv("OPENAI_API_KEY"):
@@ -883,32 +875,32 @@ def main():
     
     # Section 1: Upload
     create_upload_section()
+
+    st.markdown("---")
+    
+    # Section 2: Translation
+    create_translation_section()
     
     st.markdown("---")
     
-    # Section 2: Contract Verification
+    # Section 3: Contract Verification
     create_contract_verification_section()
     
     st.markdown("---")
     
-    # Section 3 : Chatbot
+    # Section 4: Chatbot
     create_chat_section()
-    
+
     st.markdown("---")
 
-    # Section 4: RAG Verification
-    # create_rag_verification_section()
-    
-    #st.markdown("---")
-    
     # Section 5: Export
     create_export_section()
-    
+   
     # Footer
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666; padding: 2rem;">
-        <p><strong>OneCheck&Chat</strong> - Your Tenancy Agreement Assistant</p>
+        <p><strong>LeaseOwl</strong> - Your Tenancy Agreement Assistant</p>
         <p>Built with ❤️ using Streamlit & OpenAI</p>
     </div>
     """, unsafe_allow_html=True)

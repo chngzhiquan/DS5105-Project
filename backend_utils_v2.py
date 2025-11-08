@@ -437,6 +437,69 @@ except Exception as e:
     print(f"CRITICAL: Failed to initialize global RAG components: {e}")
     general_qa_retriever = None
 
+
+# --- Add translation for documents ---
+from io import BytesIO
+import PyPDF2
+import docx  
+from langchain.chat_models import ChatOpenAI
+
+# --- CHANGE THE FUNCTION SIGNATURE ---
+# Accept a file_path (string), not bytes
+def translate_document(file_path: str, target_language: list) -> dict:
+    """
+    Translate the content of a PDF or DOCX document from a file path using OpenAI LLM.
+
+    Args:
+        file_path: The file path to the uploaded document
+        target_languages: List of target languages, e.g., ["Indonesian", "Mandarin"]
+
+    Returns:
+        dict: language -> translated text, or {"error": "message"}
+    """
+    if not target_language or not isinstance(target_language, list):
+        return {"error": "target_languages must be a non-empty list of languages."}
+
+    try:
+        text = ""
+        
+        # --- ADD LOGIC TO READ THE FILE FROM THE PATH ---
+        if file_path.lower().endswith(".pdf"):
+            # Open the file path in read-binary mode
+            with open(file_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                text = "\n".join([p.extract_text() or "" for p in reader.pages])
+        
+        elif file_path.lower().endswith(".docx"):
+            # Use the docx library to read the file path
+            document = docx.Document(file_path)
+            text = "\n".join([para.text for para in document.paragraphs])
+            
+        else:
+            return {"error": "Unsupported file type. Only .pdf and .docx are supported."}
+        # --- END OF FILE READING LOGIC ---
+
+        if not text.strip():
+            # This catches scanned PDFs (image-based)
+            return {"error": "File is empty or text could not be extracted (check if PDF is scan/image)."}
+
+        # Initialize LLM
+        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
+
+        translations = {}
+        for lang in target_language:
+            prompt = f"Translate the following text into {lang}:\n\n{text}"
+            
+            # Use .invoke() - this is the more modern way in LangChain
+            response = llm.invoke(prompt) 
+            translations[lang] = response.content
+
+        return translations
+
+    except Exception as e:
+        # A more general error message
+        return {"error": f"Failed to process document: {str(e)}"}
+
 # --------------------------------------------------------------------------------
 
 # Function Integrating LLM and RAG 1 (Report Generation)
@@ -508,7 +571,8 @@ def answer_contextual_question_openai(
     user_question: str, 
     general_qa_retriever: object,
     ta_report: Optional[List[Dict]] = None, # Optional TA Report (Phase 1 output)
-    past_messages: Optional[List[Dict[str, str]]] = None # Optional Chat History
+    past_messages: Optional[List[Dict[str, str]]] = None, # Optional Chat History
+    target_language: str = "English"
 ) -> str:
     """
     Answers a user question using RAG 2, the TA report, and chat history.
@@ -532,8 +596,11 @@ def answer_contextual_question_openai(
         "You are an expert legal assistant specializing in residential tenancy agreements. "
         "Your response must be based on the provided context, which includes the **General Law Context** (RAG data) "
         "and, if present, the **User Document Analysis Report** (specific critiques). "
+        "You are capable of understanding questions in various languages, but your primary source material is English. "
         "Maintain the flow of the conversation history. If the user's question relates to a flagged clause, "
-        "prioritize the information from the Analysis Report. Be concise and professional."
+        "prioritize the information from the Analysis Report. "
+        "Be concise and professional."
+        f"**IMPORTANT:** Translate your final answer entirely into {target_language}"
     )
     
     messages = [
@@ -589,9 +656,7 @@ def answer_contextual_question_openai(
     
     return "Unknown error."
 
-
 # WHOLE-DOC MODE (No RAG, direct TA + checklist comparison)
-
 def compress_ta_text(raw_text: str, max_chars: int = 120_000) -> str:
     """
     Lightweight text compression: clean spaces, remove page footers,
@@ -644,7 +709,7 @@ def load_checklist(checklist_path: str):
         raise ValueError("Checklist file must be .json or .csv")
 
 
-def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: str = None):
+def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: str = None, target_language: str = "English"):
     """
     Compare entire TA (compressed) directly with checklist via LLM.
     Return structured JSON (no retrieval / embedding required).
@@ -660,12 +725,12 @@ def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: 
             "items": [],
             "_error": "OpenAI client not configured. Please set OPENAI_API_KEY."
         }
-
     system_instruction = (
         "You are a contract compliance analyst for residential tenancy agreements. "
         "Return STRICT JSON only. For each checklist item, decide status ∈ "
         "{COMPLIANT, PARTIAL, MISSING}. Provide evidence (short TA quotes), "
         "risk (LOW|MEDIUM|HIGH), recommendation (specific edit), and location_hint."
+        f"**IMPORTANT:** Translate your final answer entirely into {target_language}"
     )
 
     user_query = f"""
@@ -719,19 +784,21 @@ STRICT JSON. No commentary.
         "_error": f"LLM comparison failed: {last_err}"
     }
 
-
-def generate_ta_report_whole_doc(USER_UPLOADED_FILE_PATH: str,
-                                 checklist_path: str,
-                                 mode: str = "fast"):
+def generate_ta_report_whole_doc(
+    USER_UPLOADED_FILE_PATH: str,
+    checklist_path: str,
+    mode: str = "fast",
+    target_language: list = None  # default None
+):
     """
     Generate a report by comparing the entire TA with a checklist (no RAG).
-    mode: "fast" (shorter text) or "thorough" (longer context).
+    Automatically translates the report if target_languages is set.
     """
     raw_text = load_and_extract_pdf_text(USER_UPLOADED_FILE_PATH)
     max_chars = 80_000 if mode == "fast" else 120_000
     ta_comp = compress_ta_text(raw_text, max_chars=max_chars)
     checklist = load_checklist(checklist_path)
-    result_json = compare_ta_with_checklist_whole(ta_comp, checklist)
+    result_json = compare_ta_with_checklist_whole(ta_comp, checklist, model=None, target_language=target_language)
 
     summary = result_json.get("summary", {})
     md_parts = [
@@ -754,4 +821,5 @@ f"""**[{item.get('status','')}] {item.get('title','(no title)')}**
         )
 
     final_md = "\n\n".join(md_parts) if md_parts else "No findings."
+
     return final_md, result_json
