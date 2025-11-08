@@ -16,8 +16,7 @@ from backend_utils import (
     generate_ta_report,
     answer_contextual_question_openai,
     ideal_clauses_retriever,
-    general_qa_retriever,
-    review_report, 
+    general_qa_retriever, 
     initialize_qa_resources,
     generate_ta_report_whole_doc
 )
@@ -450,7 +449,7 @@ if st.session_state.conversation_chain:
                         st.success("✅ Contract analysis completed! (Whole-Doc)")
                     else:
                         # Indexed RAG1 (original flow)
-                        from backend_utils import generate_ta_report, review_report
+                        from backend_utils import generate_ta_report
                         ideal_retriever = st.session_state.get("ideal_clauses_retriever", None)
                         if ideal_retriever is None:
                             st.error("RAG1 index not loaded. Please build/load the Ideal Clauses index.")
@@ -461,7 +460,6 @@ if st.session_state.conversation_chain:
                             ideal_clauses_retriever=ideal_retriever
                         )
                         st.session_state.verification_results = report
-                        st.session_state.rag_results = review_report(review_prompt)
                         st.success("✅ Contract analysis completed! (RAG1)")
                     
                 except Exception as e:
