@@ -725,7 +725,6 @@ def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: 
             "items": [],
             "_error": "OpenAI client not configured. Please set OPENAI_API_KEY."
         }
-    target_language = target_language
     system_instruction = (
         "You are a contract compliance analyst for residential tenancy agreements. "
         "Return STRICT JSON only. For each checklist item, decide status ∈ "
