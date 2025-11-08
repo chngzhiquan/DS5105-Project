@@ -589,55 +589,8 @@ def answer_contextual_question_openai(
     
     return "Unknown error."
 
-# Formating report for review of all retrievals
-def review_report(review_data: List[Dict]) -> str:
-    """
-    Generates a full Markdown report showing the user clause, RAG context, and LLM feedback
-    for every item in the review_data list.
-    """
-    full_report_sections = []
 
-    for item in review_data:
-        clause_num = item['clause_number']
-        user_clause = item['user_clause']
-        context_docs = item['comparison_context']
-        llm_output = item['llm_feedback']["feedback"]
-
-        # 1. Start Section for the Clause
-        full_report_sections.append(f"##### 🔍 Analysis for Clause {clause_num}")
-        full_report_sections.append("---")
-        
-        # 2. Present the User Clause (The Query)
-        full_report_sections.append(f"###### 📜 User Clause (Query)")
-        full_report_sections.append(f"```markdown\n{user_clause.strip()}\n```") # Use a code block for clean display
-        full_report_sections.append("\n")
-
-        # 3. Present the Comparison Context (The RAG Retrieval)
-        full_report_sections.append("###### 📚 Ideal Clause Context (RAG Retrieval)")
-        
-        if context_docs:
-            for i, doc in enumerate(context_docs):
-                source = doc.metadata.get('source', 'Unknown').split('/')[-1].split('\\')[-1]
-                page = doc.metadata.get('page_label', 'N/A')
-                content = doc.page_content.strip()
-                full_report_sections.append(f"Context Document {i+1} (Source: {source}, Page: {page})")
-                full_report_sections.append(f"> {content[:500]}...") # Limit to first 500 chars
-        else:
-            full_report_sections.append("*No relevant ideal clauses were found for comparison.*")
-
-        full_report_sections.append("\n---")
-        
-        # 4. Present the LLM Feedback (Formatted Output)
-        full_report_sections.append("###### ✨ LLM Feedback")
-        full_report_sections.append(llm_output)
-        
-        full_report_sections.append("\n***\n") # Strong separator between clauses
-
-    return "\n".join(full_report_sections)
-
-# ============================================================
 # WHOLE-DOC MODE (No RAG, direct TA + checklist comparison)
-# ============================================================
 
 def compress_ta_text(raw_text: str, max_chars: int = 120_000) -> str:
     """

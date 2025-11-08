@@ -7,13 +7,12 @@ import tempfile
 import base64
 from datetime import datetime
 from backend_utils_v2 import (
-    generate_ta_report,
-    answer_contextual_question_openai,
     ideal_clauses_retriever,
     general_qa_retriever,
-    review_report, 
     initialize_qa_resources,
+    answer_contextual_question_openai,
     generate_ta_report_whole_doc,
+    generate_ta_report,
     translate_document
 )
 
@@ -152,6 +151,10 @@ def initialize_session_state():
     if "uploaded_file_content" not in st.session_state:
         st.session_state.uploaded_file_content = None
     
+    # Default language
+    if "target_language" not in st.session_state:
+        st.session_state.target_language = "English"
+    
     # RAG state
     # Ideal Clauses RAG retriever object (RAG 1)
     if "ideal_clauses_retriever" not in st.session_state:
@@ -160,9 +163,6 @@ def initialize_session_state():
     # General Q&A RAG retriever object (RAG 2)
     if "general_qa_retriever" not in st.session_state:
         st.session_state.general_qa_retriever = general_qa_retriever
-    
-    if "rag_results" not in st.session_state:
-        st.session_state.rag_results = None
     
     # Contract verification state
     if "verification_results" not in st.session_state:
@@ -254,7 +254,6 @@ def create_sidebar():
                 # Reset all states
                 st.session_state.uploaded_file_name = None
                 st.session_state.uploaded_file_content = None
-                st.session_state.rag_results = None
                 st.session_state.verification_results = None
                 st.session_state.messages = []
                 st.session_state.export_preview = None
@@ -330,8 +329,7 @@ def process_uploaded_document(uploaded_file) -> bool:
     
     try:
         # Save file content
-        st.session_state.uploaded_file_content = uploaded_file.getvalue()
-        
+        st.session_state.uploaded_file_content = uploaded_file.getvalue()   
         return True
         
     except Exception as e:
@@ -509,37 +507,33 @@ if st.session_state.conversation_chain:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
                         tmp_file.write(uploaded_content)
                         temp_file_path = tmp_file.name
-                        
+                    target_language = st.session_state.get("target_language", "English")    
                     analysis_mode = st.session_state.get("analysis_mode", "Fast (Whole-Doc, No Index)")
                     if str(analysis_mode).startswith("Fast"):
                         # Whole-Doc (no RAG)
                         checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
-
                         if not os.path.exists(checklist_path):
                             st.error(f"Checklist not found: {checklist_path}")
                             return
-
-                        report_md, raw_json, translations = generate_ta_report_whole_doc(
+                        report_md = generate_ta_report_whole_doc(
                             USER_UPLOADED_FILE_PATH=temp_file_path,
                             checklist_path=checklist_path,
+                            target_language=target_language
                         )
                         st.session_state.verification_results = report_md
-                        st.session_state.rag_results = None
                         st.success("✅ Contract analysis completed! (Whole-Doc)")
                     else:
                         # Indexed RAG1 (original flow)
-                        from backend_utils import generate_ta_report, review_report
                         ideal_retriever = st.session_state.get("ideal_clauses_retriever", None)
                         if ideal_retriever is None:
                             st.error("RAG1 index not loaded. Please build/load the Ideal Clauses index.")
                             return
 
-                        report, review_prompt = generate_ta_report(
+                        report = generate_ta_report(
                             USER_UPLOADED_FILE_PATH=temp_file_path,
                             ideal_clauses_retriever=ideal_retriever
                         )
                         st.session_state.verification_results = report
-                        st.session_state.rag_results = review_report(review_prompt)
                         st.success("✅ Contract analysis completed! (RAG1)")
                     
                 except Exception as e:
@@ -556,19 +550,19 @@ if st.session_state.conversation_chain:
         st.markdown("**Analysis Results:**")
         
         # Placeholder for results display
-        result_tabs = st.tabs(["📋 Summary", "⚠️ Issues", "✅ Compliance", "📊 Details"])
+        result_tabs = st.tabs(["📋 Summary", "⚠️ Issues", "✅ Compliance", "📊 Recomendations"])
         
         with result_tabs[0]:
             st.markdown(st.session_state.verification_results)
 
         with result_tabs[1]:
-            st.markdown(st.session_state.rag_results)
+            st.markdown("Issues will be displayed here")
         
         with result_tabs[2]:
             st.info("Compliance status will be displayed here")
         
         with result_tabs[3]:
-            st.info("Detailed analysis will be displayed here")
+            st.info("Recomendations will be displayed here")
 
 def create_chat_section():
     """Section 4: Chatbot"""
@@ -683,7 +677,7 @@ def handle_suggested_question(question: str):
         for msg in st.session_state.messages
         if msg["role"] in ("user", "assistant") and msg["content"]
     ]
-    
+    target_language = st.session_state.get("target_language","English")
     # Implement chatbot response
     with st.spinner("Thinking..."):
         try:
@@ -691,7 +685,8 @@ def handle_suggested_question(question: str):
                 user_question=question,
                 general_qa_retriever=st.session_state.general_qa_retriever,
                 ta_report=st.session_state.verification_results,
-                past_messages=past_messages_for_llm
+                past_messages=past_messages_for_llm,
+                target_language=target_language
             )
             st.session_state.messages.append({"role": "assistant", "content": response})
         except Exception as e:
@@ -712,6 +707,7 @@ def handle_user_question(question: str):
         for msg in st.session_state.messages
         if msg["role"] == ["user", "assistant"] and msg["content"]
     ]
+    target_language = st.session_state.get("target_language","English")
     # Implement chatbot response
     with st.spinner("Thinking..."):
         try:
@@ -719,7 +715,8 @@ def handle_user_question(question: str):
                 user_question=question,
                 general_qa_retriever=st.session_state.general_qa_retriever,
                 ta_report=st.session_state.verification_results,
-                past_messages=past_messages_for_llm
+                past_messages=past_messages_for_llm,
+                target_language=target_language
             )
             st.session_state.messages.append({"role": "assistant", "content": response})
         except Exception as e:
