@@ -355,8 +355,8 @@ def create_translation_section():
     # Language selection
     target_language = st.selectbox(
         "Select target language:",
-        ["English", "Indonesian", "Chinese", "Spanish", "French", "German"],
-        index=1,
+        ["English", "Indonesian", "Traditional Chinese", "Thai", "Spanish", "French", "German"],
+        index = 0,
         key="target_language"  # store in session_state automatically
     )
     
@@ -370,12 +370,13 @@ def create_translation_section():
                 try:
                     # LANGUAGE MAPPING
                     language_map = {
-                        "Chinese": "Mandarin",
-                        "English": "English",
-                        "Indonesian": "Indonesian",
-                        "Spanish": "Spanish",
-                        "French": "French",
-                        "German": "German"
+                        "Traditional Chinese": "zh-tw",
+                        "English": "en",
+                        "Indonesian": "id",
+                        "Thai": "th",
+                        "Spanish": "es",
+                        "French": "fr",
+                        "German": "de"
                     }
                     mapped_language = language_map.get(st.session_state.target_language, st.session_state.target_language)
 
@@ -515,12 +516,13 @@ if st.session_state.conversation_chain:
                         if not os.path.exists(checklist_path):
                             st.error(f"Checklist not found: {checklist_path}")
                             return
-                        report_md = generate_ta_report_whole_doc(
+                        report_md, report_json = generate_ta_report_whole_doc(
                             USER_UPLOADED_FILE_PATH=temp_file_path,
                             checklist_path=checklist_path,
                             target_language=target_language
                         )
-                        st.session_state.verification_results = report_md
+                        st.session_state.verification_results = report_md      # string for display
+                        st.session_state.verification_json = report_json       # structured data if you need it     
                         st.success("✅ Contract analysis completed! (Whole-Doc)")
                     else:
                         # Indexed RAG1 (original flow)
@@ -529,11 +531,12 @@ if st.session_state.conversation_chain:
                             st.error("RAG1 index not loaded. Please build/load the Ideal Clauses index.")
                             return
 
-                        report = generate_ta_report(
+                        report, review_prompt = generate_ta_report(
                             USER_UPLOADED_FILE_PATH=temp_file_path,
                             ideal_clauses_retriever=ideal_retriever
                         )
                         st.session_state.verification_results = report
+                        st.session_state.verification_raw = review_prompt
                         st.success("✅ Contract analysis completed! (RAG1)")
                     
                 except Exception as e:
