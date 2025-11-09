@@ -187,10 +187,52 @@ def create_sidebar():
     """Create sidebar with configuration and info"""
     
     with st.sidebar:
-        st.image("Logo.jpeg", use_container_width=True)
         
+        ## Logo
+        st.image("Logo.jpeg", use_container_width=True)
         st.markdown("---")
         
+        # About us
+        with st.expander("🦉 About Us", expanded=False):
+            st.markdown(
+                """
+                <div style="text-align: center;">
+                    <h3 style="margin-bottom: 0;">LeaseOwl</h3>
+                    <p style="font-size: 15px; margin-top: 2px; color: #666;">Know Your Lease</p>
+                </div>
+                <hr style="margin: 4px 0;">
+                <p style="font-size: 14px; line-height: 1.5; text-align: justify;">
+                    A <b>GenAI-powered assistant</b> designed to automate the review of tenancy agreements, 
+                    providing tenants with instant clarity, actionable feedback, and on-demand contextual answers 
+                    — so you can sign with confidence.
+                </p>
+                """,
+                unsafe_allow_html=True
+            )
+
+        # Help Section
+        with st.expander("ℹ️ How to Use", expanded=False):
+            st.markdown(
+                """
+                ### 🪜 Steps:
+                #### In Sidebar
+                - **Enter** your OpenAI API key
+                - **Choose** analysis engine (Fast or Indexed)
+                #### In Main Page
+                1. **Upload** tenancy agreement PDF  
+                2. **Translate** to your language of choice  
+                3. **Check** AI-powered contract analysis  
+                4. **Chat** with the Chatbot  
+                5. **Export** results  
+
+                ### ⚙️ Requirements:
+                - OpenAI API key  
+                - PDF tenancy agreement
+                """,
+            )
+
+        st.markdown("---")
+
         # API Key management
         st.subheader("🔑 API Configuration")
         
@@ -259,29 +301,24 @@ def create_sidebar():
                 st.session_state.export_preview = None
                 st.rerun()
         
-        st.markdown("---")
-        
-        # Help section
-        with st.expander("ℹ️ How to Use"):
-            st.markdown("""
-            ### Steps:
-            1. **Upload** tenancy agreement PDF
-            2. **Translate** to your language of choice
-            3. **Check** AI contract analysis
-            4. **Chat** with the Chatbot
-            5. **Export** results
-            
-            ### Requirements:
-            - OpenAI API key
-            - PDF tenancy agreement
-            """)
-        
-        st.markdown("---")
         
         # About
-        st.caption("**LeaseOwl v1.0**")
-        st.caption("Tenancy Agreement Analyzer")
-        st.caption("© 2025 All rights reserved")
+        st.markdown(
+            """
+            <div style='text-align: center;'>
+                <p style='font-size: 14px; color: grey; margin-bottom: 0;'>
+                    <b>LeaseOwl v1.0</b>
+                </p>
+                <p style='font-size: 13px; margin-top: 2px; margin-bottom: 0;'>
+                    Your Tenancy Agreement Assistant
+                </p>
+                <p style='font-size: 12px; color: #999; margin-top: 2px;'>
+                    © 2025 All rights reserved
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 def create_upload_section():
     """Section 1: Upload PDF file"""
@@ -905,7 +942,7 @@ def main():
     st.markdown("""
     <div style="text-align: center; color: #666; padding: 2rem;">
         <p><strong>LeaseOwl</strong> - Your Tenancy Agreement Assistant</p>
-        <p>Built with ❤️ using Streamlit & OpenAI</p>
+        <p>Built with ❤️ DSS5105 Data Science Projects in Practice</p>
     </div>
     """, unsafe_allow_html=True)
 
