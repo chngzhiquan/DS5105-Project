@@ -1,0 +1,66 @@
+Clause_Label	Explanation	Source_Clause_Reference
+Schedule_Agreement_Date	The date the agreement is made.	Schedule Item 1
+Schedule_Property_Address	The full address of the HDB flat being rented.	Schedule Item 2
+Schedule_Flat_Type	The type of HDB flat (e.g., 3-Room, 4-Room).	Schedule Item 3
+Schedule_Landlord_Details	Name, NRIC, address, and contact details of the Landlord.	Schedule Item 4
+Schedule_Tenant_Details	Name, ID (NRIC/FIN/Passport), address, and contact details of the Tenant.	Schedule Item 5
+Schedule_Occupier_Details	A list of names and identification details for all permitted occupiers.	Schedule Item 6
+Schedule_Tenancy_Period	Specifies the exact start and end dates of the lease (minimum 6 months).	Schedule Item 7
+Schedule_Rent_Payment	Details the monthly rent amount, payment due day, and bank account for payment.	Schedule Item 8
+Schedule_Security_Deposit	Specifies the total deposit amount (e.g., 1-2 months' rent).	Schedule Item 9
+Schedule_Minor_Repair_Threshold	Sets the maximum amount (e.g., $150) the Tenant must pay per minor repair incident.	Schedule Item 10
+Schedule_Commission_Refund	Clause stating the Tenant must refund the Landlord's agent commission (pro-rata) if the lease is terminated early.	Schedule Item 11
+Schedule_Stamp_Duty	Identifies which party is responsible for paying the stamp duty (tax) on the agreement.	Schedule Item 12
+[cite_start]Schedule_Furnishing_Level	States whether the flat is let as unfurnished, partial furnished, or fully furnished.	Schedule Item 13 [cite: 108-111]
+Schedule_Pre-Tenancy_Conditions	Lists the specific conditions the Landlord must fulfill before handover (e.g., professional cleaning).	Schedule Item 14
+Schedule_Special_Conditions	A section for any custom terms, items, or rules agreed upon by both parties.	Schedule Item 15
+Schedule_Diplomatic_Break_Clause	An optional clause allowing the Tenant to terminate the lease early if transferred out of Singapore.	Schedule Item 16
+Schedule_Problem-Free_Period	A defined number of days (e.g., 30) at the start where the Landlord fixes all reported defects.	Schedule Item 17
+Clause_1.1_Premises_Use	Defines the flat's use as a private residence only, for the named occupiers.	Clause 1.1
+Clause_1.2_HDB_Compliance	Mandates that the tenancy is subject to HDB approval and all HDB rules.	Clause 1.2
+[cite_start]Clause_2.2_Security_Deposit_Rules	Details the conditions for the Landlord to deduct from the deposit and its refund (without interest) at the end of the tenancy.	Clause 2.2 [cite: 175-178]
+Clause_2.3_Utilities_Payment	States the Tenant is responsible for paying all utilities (water, electricity, gas) and related taxes.	Clause 2.3
+Clause_2.4_Telecoms_Payment	States the Tenant is responsible for all telecommunication charges (internet, TV, phone).	Clause 2.4
+[cite_start]Clause_3.1-3.2_Immigration_Status	Requires Tenant/occupiers to have valid passes (min. 6 months validity) and show original documents to Landlord.	Clause 3.1, 3.2 [cite: 197-199, 201]
+Clause_3.3-3.6_Status_Changes	Tenant must inform Landlord of any change in immigration/employment status and indemnifies Landlord against breaches.	Clause 3.3, 3.4, 3.5, 3.6
+Clause_4.1_Problem-Free_Period_Maintenance	Landlord is responsible for rectifying all defects reported in writing during the Problem-Free Period.	Clause 4.1
+Clause_4.2_Minor_Repair_Rules	After Problem-Free Period, Tenant pays for repairs up to the threshold amount; Landlord pays the excess.	Clause 4.2
+Clause_4.3_Fixtures_Maintenance	Tenant must keep the interior, fixtures, and fittings in good and tenantable repair.	Clause 4.3
+Clause_4.4_Aircon_Servicing_Tenant	Tenant must take up a service contract for quarterly aircon servicing at their own expense and keep receipts.	Clause 4.4
+Clause_4.5_Aircon_Servicing_Landlord	Landlord is responsible for major breakdowns, repairs, and chemical cleaning, unless caused by Tenant's negligence.	Clause 4.5
+Clause_4.6_General_Cleaning	Tenant must keep the flat clean, sanitary, and pest-free, hiring professionals if needed.	Clause 4.6
+[cite_start]Clause_4.7_Landlord_Access_Rights	Tenant must permit Landlord (or agents) to enter for viewings or repairs, with prior appointment.	Clause 4.7 [cite: 258-261]
+Clause_4.8_No-Fault_Callout_Fee	Tenant must pay the contractor's callout charge if a reported fault is not found or is caused by the Tenant.	Clause 4.8
+Clause_4.9_No_Self-Help_Repair	Tenant cannot authorize repairs and seek reimbursement without prior written consent from the Landlord.	Clause 4.9
+Clause_5.1a-c_Tenant_Restrictions_Property	Prohibits Tenant from removing items, making structural alterations, or hacking holes/nails without consent.	Clause 5.1a, 5.1b, 5.1c
+Clause_5.1d_No_Subletting	Explicitly forbids the Tenant from assigning, subletting, or parting with possession of the flat.	Clause 5.1d
+Clause_5.1e-f_Tenant_Restrictions_Safety	Prohibits storing dangerous materials or altering/adding locks without consent.	Clause 5.1e, 5.1f
+Clause_5.1g_No_Pets	Forbids keeping any pets without the Landlord's prior written consent and adherence to HDB rules.	Clause 5.1g
+Clause_5.1h_No_Smoking	Explicitly forbids smoking tobacco products inside the flat.	Clause 5.1h
+Clause_5.1i-j_Tenant_Restrictions_Use	Prohibits causing nuisance to neighbors or using the flat for any illegal purpose.	Clause 5.1i, 5.1j
+Clause_5.2_Fines_for_Breaches	Tenant is responsible for paying any fines from HDB or Town Council caused by their (or their visitors') actions.	Clause 5.2
+Clause_5.3-5.4_Handover_Condition	Tenant must return the flat in its original condition (fair wear and tear excepted) after a joint inspection.	Clause 5.3, 5.4
+Clause_6.1_Viewings_Prospective	Tenant must allow viewings for prospective tenants (last 2 months) or buyers, with 48 hours' prior notice.	Clause 6.1
+Clause_7a-c_Landlord_Obligations	Landlord must pay property taxes/conservancy charges, provide 'Quiet Enjoyment', and may grant an extension.	Clause 7a, 7b, 7c
+Clause_7d-f_Landlord_Maintenance	Landlord must insure the flat (fire), provide receipts for rent, and maintain structural/concealed pipes and wiring.	Clause 7d, 7e, 7f
+Clause_8.1_Landlord_Termination_Rights	Landlord can terminate if rent is unpaid for 7 days, or if Tenant fails to fix a breach within 14 days of written notice.	Clause 8.1
+Clause_8.2_Automatic_Termination	Lease terminates automatically if Tenant's immigration/employment status becomes illegal or if HDB revokes approval.	Clause 8.2
+Clause_8.3_Right_of_Re-Entry	Upon lawful termination, the Landlord has the right to re-enter the flat.	Clause 8.3
+Clause_8.4_Interest_on_Late_Rent	Landlord can charge 10% p.a. interest on rent that is unpaid for more than 7 days.	Clause 8.4
+Clause_9.1-9.2_Rent_Suspension	Rent is suspended if the flat is uninhabitable (e.g., by fire). Either party can then terminate the lease.	Clause 9.1, 9.2
+Clause_10.1_Exclusion_of_Liability	Landlord is not liable for any accidents, injuries, or loss of property sustained by the Tenant or visitors in the flat.	Clause 10.1
+Clause_11_Notices	Defines how formal notices must be served (e.g., personally or by Certificate of Posting).	Clause 11.1, 11.2
+Clause_12.1-12.3_Governing_Law	Agreement is governed by Singapore law and is subject to all HDB policies.	Clause 12.1, 12.3
+Clause_12.2_Dispute_Resolution	Parties must attempt mediation or arbitration *before* going to the Singapore Courts.	Clause 12.2
+Clause_13.1_Special_Conditions_Primacy	States that the Special Conditions in Schedule Item 15 will override any conflicting clauses.	Clause 13.1
+Clause_14.1_Inventory_List	Landlord must prepare an Inventory List at handover, to be signed by both parties.	Clause 14.1
+Clause_15.1_Property_Condition_Report	Tenant must prepare a Property Condition Report (within Problem-Free Period) to be signed by both parties.	Clause 15.1
+Clause_16_Severability	If one clause is found to be illegal or unenforceable, the rest of the agreement remains valid.	Clause 16.1
+Clause_17_Rights_of_Third_Parties	A person who is not a party to this agreement has no right to enforce any of ter.ms	Clause 17.1
+Clause_18_Waiver	A delay or failure by either party to enforce a right does not count as a waiver of that right.	Clause 18.1, 18.2
+Clause_19.1_End_of_Tenancy_Keys	Tenancy (and rent obligation) only ends when keys are returned to the Landlord.	Clause 19.1
+Clause_19.2_Curtain_Cleaning	Tenant must have all curtains professionally dry-cleaned at the end of the tenancy and provide a receipt.	Clause 19.2
+Clause_20_Definitions	Defines key terms used in the agreement.	Clause 20.1-20.6
+Annexure_A_Checklist	Provides an End of Tenancy Checklist for the handover process.	Annexure A
+Annexure_B_Inventory_Template	The template for the Inventory List (Landlord prepares).	Annexure B
+Annexure_C_Condition_Report_Template	The template for the Property Condition Report (Tenant prepares).	Annexure C
