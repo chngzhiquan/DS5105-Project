@@ -115,9 +115,10 @@ project_root/
 │   ├── ideal_clause_1.pdf
 │   └── ideal_clause_2.pdf
 ├── checklist/
-│   └── checklist.csv
-├── Database Requirements.xlsx
-├── main.py
+│   └── checklist.csv (For "Fast" mode)
+├── Database Requirements.xlsx (For general Q&A RAG 2)
+├── main2.py
+├── backend_utils_v2.py
 └── .env
 ```
 
@@ -132,7 +133,7 @@ jupyter notebook test_rag.ipynb
 *_Run again only if your data updates._*
 
 ### ▶️ **4. Run the App**
-streamlit run main.py
+streamlit run main2.py
 
 **✅ Using the App**
 - Upload your Tenancy Agreement PDF.
