@@ -133,7 +133,7 @@ jupyter notebook test_rag.ipynb
 *_Run again only if your data updates._*
 
 ### ▶️ **4. Run the App**
-streamlit run main2.py
+streamlit run main_v2.py
 
 **✅ Using the App**
 - Upload your Tenancy Agreement PDF.
@@ -155,7 +155,7 @@ streamlit run main2.py
 
 **🧩 Multi-Language Support**
 - Tenancy Agreement can be translated automatically.
-- Default languages: ["English","Indonesian","Chinese","French","Spanish","German"]
+- Default languages: ["English","Indonesian","Chinese","French","Spanish","German, Thai, Traditional Chinese, Simplified Chinese"]
 
 **📌 Notes**
 - Ensure .env has a valid OPENAI_API_KEY.
