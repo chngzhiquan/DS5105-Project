@@ -729,7 +729,8 @@ def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: 
         "You are a contract compliance analyst for residential tenancy agreements. "
         "Return STRICT JSON only. For each checklist item, decide status ∈ "
         "{COMPLIANT, PARTIAL, MISSING}. Provide evidence (short TA quotes), "
-        "risk (LOW|MEDIUM|HIGH), recommendation (specific edit), and location_hint."
+        "risk (LOW|MEDIUM|HIGH) derived from the loaded checklist's criteria, "
+        "recommendation (specific edit), and location_hint."
         f"**IMPORTANT:** Translate your final answer entirely into {target_language}"
     )
 
@@ -811,13 +812,19 @@ def generate_ta_report_whole_doc(
     ]
 
     for item in result_json.get("items", []):
+        location = item.get('location_hint','N/A')
+        evidence_list = item.get('evidence',[])
+        evidence_str = ("; ".join(evidence_list[:3]) or '-')
         md_parts.append(
-f"""**[{item.get('status','')}] {item.get('title','(no title)')}**  
-- Risk: **{item.get('risk','')}**  
-- Location: {item.get('location_hint','N/A')}  
-- Evidence: {("; ".join(item.get('evidence', [])[:3]) or '—')}  
-- Recommendation: {item.get('recommendation','—')}
-"""
+        f"""**[{item.get('status','')}] {item.get('title','(no title)')}** - Risk: **{item.get('risk','')}**"""
+        )
+        # Only add Location line if it's not blank or 'N/A'
+        if location and location != 'N/A':
+            md_parts.append(f"""- Location: {location}""")
+        if evidence_str != '—':
+            md_parts.append(f"""- Evidence: {evidence_str}""")
+        md_parts.append(
+        f"""- Recommendation: {item.get('recommendation','—')}"""
         )
 
     final_md = "\n\n".join(md_parts) if md_parts else "No findings."
