@@ -1,14 +1,12 @@
-#!/usr/bin/env python3
-
 import streamlit as st
+import io
 import os
-from typing import Optional, List, Dict, Any
 import tempfile
-import base64
 from datetime import datetime
 from backend_utils_v2 import (
     ideal_clauses_retriever,
     general_qa_retriever,
+    process_pdf_to_clauses,
     initialize_qa_resources,
     answer_contextual_question_openai,
     generate_ta_report_whole_doc,
@@ -23,20 +21,6 @@ try:
     DOTENV_AVAILABLE = True
 except ImportError:
     DOTENV_AVAILABLE = False
-
-# Core libraries for PDF processing and AI
-try:
-    from langchain_community.document_loaders import PyPDFLoader
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
-    from langchain_community.embeddings import OpenAIEmbeddings
-    from langchain_community.vectorstores import FAISS
-    from langchain_community.chat_models import ChatOpenAI
-    from langchain.chains import ConversationalRetrievalChain
-    from langchain.memory import ConversationBufferMemory
-    import openai
-    LANGCHAIN_AVAILABLE = True
-except ImportError:
-    LANGCHAIN_AVAILABLE = False
 
 # Page configuration
 st.set_page_config(
@@ -150,6 +134,9 @@ def initialize_session_state():
     
     if "uploaded_file_content" not in st.session_state:
         st.session_state.uploaded_file_content = None
+
+    if 'parsed_clauses' not in st.session_state:
+        st.session_state.parsed_clauses = None
     
     # Default language
     if "target_language" not in st.session_state:
@@ -365,8 +352,11 @@ def process_uploaded_document(uploaded_file) -> bool:
     """Process the uploaded PDF document"""
     
     try:
-        # Save file content
-        st.session_state.uploaded_file_content = uploaded_file.getvalue()   
+        file_bytes = uploaded_file.getvalue()
+        st.session_state.uploaded_file_content = file_bytes
+        file_buffer = io.BytesIO(file_bytes)
+        clauses = process_pdf_to_clauses(file_buffer)
+        st.session_state.parsed_clauses = clauses 
         return True
         
     except Exception as e:
