@@ -309,6 +309,10 @@ async def check_missing_clauses_node(state: AnalysisGraphState) -> Dict:
     print("--- Task A: 🕵️ Checking for Missing Clauses ---")
     
     try:
+        # Load the checklist
+        checklist_path = state["checklist_path"]
+        checklist_items = load_checklist(checklist_path)
+        master_titles = [item.get("title", "Unknown Item") for item in checklist_items]
         # Get the titles of the clauses the user *actually* has
         parsed_clause_titles = [c.clause_title for c in state["clauses"]]
         
@@ -340,7 +344,7 @@ async def check_missing_clauses_node(state: AnalysisGraphState) -> Dict:
         chain = prompt | llm | StrOutputParser()
         
         report = await chain.ainvoke({
-            "master_list": "\n".join(f"- {item}" for item in MASTER_CHECKLIST),
+            "master_list": "\n".join(f"- {item}" for item in master_titles),
             "actual_titles": "\n".join(f"- {title}" for title in parsed_clause_titles)
         })
         
