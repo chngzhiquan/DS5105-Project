@@ -131,6 +131,9 @@ def initialize_session_state():
     # File upload state
     if "uploaded_file_name" not in st.session_state:
         st.session_state.uploaded_file_name = None
+
+    if "original_file_bytes" not in st.session_state:
+        st.session_state.original_file_bytes = None
     
     if "uploaded_file_content" not in st.session_state:
         st.session_state.uploaded_file_content = None
@@ -353,6 +356,7 @@ def process_uploaded_document(uploaded_file) -> bool:
     
     try:
         file_bytes = uploaded_file.getvalue()
+        st.session_state.original_file_bytes = file_bytes
         
         # 1. Create an in-memory buffer from the bytes
         file_buffer = io.BytesIO(file_bytes)
@@ -402,7 +406,7 @@ def create_translation_section():
     
     # Translate button inside function
     if st.button("🌍 Translate Document", type="primary"):
-        uploaded_content = st.session_state.get('uploaded_file_content')
+        uploaded_content = st.session_state.get('original_file_bytes')
         if not uploaded_content:
             st.error("❌ No document content available for translation")
         else:

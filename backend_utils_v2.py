@@ -712,7 +712,13 @@ analysis_workflow.add_edge("fast_checklist", END)
 analysis_app = analysis_workflow.compile()
 print("--- ✅ Full Analysis Graph compiled! ---")
 
-async def run_full_analysis(raw_text: str, analysis_mode: str = "thorough") -> str:
+async def run_full_analysis(
+    raw_text: str,
+    clauses: List[Clause], 
+    checklist_path: str,
+    target_language: str = "English",
+    analysis_mode: str = "fast"
+) -> str:
     """
     The main processing function for FULL ANALYSIS.
     It takes the raw text (already parsed) and runs the full graph.
@@ -723,6 +729,9 @@ async def run_full_analysis(raw_text: str, analysis_mode: str = "thorough") -> s
     # The 'analysis_mode' will be used by the router.
     inputs = {
         "raw_text": raw_text,
+        "clauses": clauses, 
+        "checklist_path": checklist_path,
+        "target_language": target_language,
         "analysis_mode": analysis_mode
     }
     
