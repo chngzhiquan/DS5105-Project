@@ -353,9 +353,8 @@ def process_uploaded_document(uploaded_file) -> bool:
     
     try:
         file_bytes = uploaded_file.getvalue()
-        st.session_state.uploaded_file_content = file_bytes
-        file_buffer = io.BytesIO(file_bytes)
-        clauses = process_pdf_to_clauses(file_buffer)
+        raw_text, clauses = process_pdf_to_clauses(file_bytes)
+        st.session_state.uploaded_file_content = raw_text
         st.session_state.parsed_clauses = clauses 
         return True
         
