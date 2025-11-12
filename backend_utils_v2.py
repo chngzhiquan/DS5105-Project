@@ -14,6 +14,7 @@ from typing import List, Dict, Optional, TypedDict, Any
 from openai import OpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+from pypdf import PdfReader
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_core.output_parsers import StrOutputParser
@@ -175,49 +176,41 @@ def load_retriever(FAISS_INDEX_PATH, K):
     # 2. Return Retriever
     return vectorstore.as_retriever(search_kwargs={"k": K})
 
-def load_and_extract_pdf_text(file_path: str) -> str:
+def load_and_extract_pdf_text(pdf_file) -> str:
     """
-    Checks if a file is a PDF, loads it, and extracts all text content.
+    Extracts text from an IN-MEMORY PDF file (from st.file_uploader)
+    and applies regex cleanup.
     
     Args:
-        file_path: The local path to the user's uploaded file.
-
+        pdf_file: The in-memory file object (e.g., from io.BytesIO).
+    
     Returns:
         A single string containing all text from the PDF.
-
-    Raises:
-        ValueError: If the file is not found or is not a PDF.
     """
-    print(f"\n--- Loading and Extracting Text from: {file_path} ---")
-
-    # 1. Basic File Check
-    if not os.path.exists(file_path):
-        raise ValueError(f"Error: File not found at path: {file_path}")
-
-    # 2. PDF Extension Check (Simple approach)
-    if not file_path.lower().endswith('.pdf'):
-        raise ValueError(f"Error: File is not a PDF ('.pdf' extension required).")
-
+    print("--- 💬 Extracting text from in-memory PDF ---")
+    
+    # This function does NOT check for a file path.
+    # It reads the in-memory object directly.
+    
     try:
-        # 3. Use LangChain's PyPDFLoader for robust text extraction
-        loader = PyPDFLoader(file_path)
+        # Use pypdf.PdfReader to read the file-like object
+        reader = PdfReader(pdf_file)
         
-        # Load all pages as a list of Document objects
-        pages = loader.load()
+        pages = reader.pages
         print(f"Successfully loaded {len(pages)} pages.")
 
-        # 4. Concatenate all page content into a single string
-        full_text = "\n\n".join(page.page_content for page in pages)
+        # Concatenate all page content
+        full_text = "\n\n".join(page.extract_text() for page in pages if page.extract_text())
         
-        # Simple cleanup (optional, but helps with messy PDF parsing)
-        full_text = re.sub(r'\s{2,}', ' ', full_text) # Replace multiple spaces/newlines with single space
-        full_text = re.sub(r'(\n\s*){2,}', '\n\n', full_text) # Preserve paragraph breaks
+        # Your regex cleanup
+        full_text = re.sub(r'\s{2,}', ' ', full_text)
+        full_text = re.sub(r'(\n\s*){2,}', '\n\n', full_text)
 
         print("Text extraction complete.")
         return full_text
     
     except Exception as e:
-        # Catch errors during PDF parsing
+        print(f"An error occurred during PDF text extraction: {e}")
         raise RuntimeError(f"An error occurred during PDF text extraction: {e}")
 
 # New code for new thorough mode
@@ -263,24 +256,30 @@ parse_chain = get_parser_chain()
 print("--- ✅ Parser Chain built! ---")
 
 # Convert pdf to clauses
-def process_pdf_to_clauses(uploaded_file) -> List[Clause] | None:
+def process_pdf_to_clauses(uploaded_file) -> tuple[str, List[Clause]] | None:
     """
     The main processing function for PARSING ONLY.
     It handles PDF extraction and calls the simple parse_chain.
+    
+    Returns:
+        A tuple of (raw_text, clauses), or None on failure.
     """
     
     # Step 1: Extract text from the PDF
+    # (This assumes uploaded_file is an in-memory object)
     raw_text = load_and_extract_pdf_text(uploaded_file)
     
     if not raw_text or raw_text.strip() == "":
         print("--- ❌ PDF extraction failed or file is empty. ---")
         return None
         
-    # Step 2: Run the compiled Parser Chain
+    # Step 2: Run the compiled "Parser Chain"
     print("--- 🚀 Invoking parse_chain... ---")
     try:
         parsed_agreement = parse_chain.invoke({"agreement_text": raw_text})
-        return {"raw_text":raw_text, "clauses":parsed_agreement.clauses}
+        
+        # Step 3: Return BOTH the raw text and the parsed clauses
+        return raw_text, parsed_agreement.clauses
         
     except Exception as e:
         print(f"Error during LLM parsing: {e}")
@@ -299,6 +298,27 @@ class AnalysisGraphState(TypedDict):
     missing_clauses_report: str
     clause_analyses: List[str]
     final_report: str
+
+def setup_retriever_node(state: AnalysisGraphState) -> dict:
+    """
+    Loads the pre-built 'Ideal Clauses' retriever from disk.
+    This is Node 2 in our graph, running after the parser.
+    """
+    print("--- 📚 Calling setup_retriever_node ---")
+    
+    try:
+        # This is for the "Thorough Mode" RAG analysis
+        IDEAL_CLAUSES_FAISS = os.path.join(BACKEND_SCRIPT_DIR,"faiss_index_ideal_clauses")
+        ideal_retriever = load_retriever(IDEAL_CLAUSES_FAISS, K=3)
+        
+        # Save the retriever to the graph's state
+        # The 'AnalysisGraphState' TypedDict must have a 'retriever' key
+        return {"retriever": ideal_retriever}
+    
+    except FileNotFoundError as e:
+        print(f"CRITICAL ERROR: {e}")
+        # Re-raise the error to stop the graph and alert the developer
+        raise e
 
 # --- TASK A (New Node): Check for Missing Clauses ---
 async def check_missing_clauses_node(state: AnalysisGraphState) -> Dict:
@@ -646,6 +666,20 @@ def fast_checklist_node(state: AnalysisGraphState) -> dict:
 
     # 3. Write the final report back to the state
     return {"final_report": final_md}
+
+def route_analysis(state: AnalysisGraphState) -> str:
+    """
+    This is the "router" or "conditional edge" function.
+    It reads 'analysis_mode' from the state and decides the next step.
+    
+    The 'analysis_mode' string ("fast" or "thorough") is passed in
+    from main.py when the graph is first called.
+    """
+    mode = state["analysis_mode"]
+    if mode == "fast":
+        return "fast_mode" # must match the key
+    else:
+        return "thorough_mode"
 
 print("--- 🚀 Compiling Full Analysis Graph... ---")
 analysis_workflow = StateGraph(AnalysisGraphState)
