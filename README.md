@@ -37,7 +37,6 @@ Goal: Help users understand contracts and make confident decisions in **minutes 
 | **Automated Report Generation**       | Summarizes **key findings, risks, and suggestions** into professional reports, ready to share or save.                                                |
 | **Multi-Language Support**            | Translates TAs automatically into multiple languages (English, Indonesian, Chinese, French, Spanish, German, Thai, Traditional & Simplified Chinese). |
 | **Thorough Clause Coverage**          | Supports **deep, clause-level analysis** with full risk context; goes beyond basic compliance checks.                                                 |
-                                             |
 
 ---
 
