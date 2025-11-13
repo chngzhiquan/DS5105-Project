@@ -255,22 +255,12 @@ def create_sidebar():
         
         st.markdown("---")
 
-        # === Analysis Engine ===
-        st.subheader("Analysis Engine")
-        analysis_mode = st.radio(
-            "Choose engine",
-            ["Fast", "Indexed (RAG)"],
-            index=0,
-            key="analysis_mode_radio"
-        )
-        st.session_state.analysis_mode = analysis_mode  
-
-        # Checklist path (only for Whole-Doc)
+        # Checklist path
         default_checklist = os.path.expanduser("./checklist/checklist.csv") 
         checklist_path = st.text_input(
             "Checklist file (.csv)",
             value=default_checklist,
-            help="Used only in Fast (Whole-Doc) mode",
+            help="Used to compare checklist against",
             key="checklist_path_input"
         )
         st.session_state.checklist_path = checklist_path
@@ -285,7 +275,10 @@ def create_sidebar():
             if st.button("🗑️ Clear Document", type="secondary"):
                 # Reset all states
                 st.session_state.uploaded_file_name = None
+                st.session_state.original_file_bytes = None
                 st.session_state.uploaded_file_content = None
+                st.session_state.parsed_clauses = None
+                st.session_state.target_language = "English"
                 st.session_state.verification_results = None
                 st.session_state.messages = []
                 st.session_state.export_preview = None
@@ -395,68 +388,70 @@ def create_translation_section():
     <p>Translate your tenancy agreement into a target language using AI.</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Language selection
-    target_language = st.selectbox(
-        "Select target language:",
-        ["English", "Indonesian", "Thai", "Traditional Chinese", "Simplified Chinese", "Spanish", "French", "German"],
-        index = 0,
-        key="target_language"  # store in session_state automatically
-    )
-    
-    # Translate button inside function
-    if st.button("🌍 Translate Document", type="primary"):
-        uploaded_content = st.session_state.get('original_file_bytes')
-        if not uploaded_content:
-            st.error("❌ No document content available for translation")
-        else:
-            with st.spinner(f"Translating document to {st.session_state.target_language}..."):
-                try:
-                    # LANGUAGE MAPPING
-                    language_map = {
-                        "English": "en",
-                        "Indonesian": "id",
-                        "Thai": "th",
-                        "Traditional Chinese": "zh-tw",
-                        "Simplified Chinese": "zh-ch",
-                        "Spanish": "es",
-                        "French": "fr",
-                        "German": "de"
-                    }
-                    mapped_language = language_map.get(st.session_state.target_language, st.session_state.target_language)
 
-                    # Save temp file
-                    suffix = ".pdf" if st.session_state.uploaded_file_name.lower().endswith(".pdf") else ".docx"
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
-                        tmp_file.write(uploaded_content)
-                        tmp_file_path = tmp_file.name
+    col1, col2 = st.columns([3,1])
+    
+    with col1:
+        # Language selection    
+        target_language = st.selectbox(
+            "Select Language:",
+            ["English", "Indonesian", "Thai", "Traditional Chinese", "Simplified Chinese", "Spanish", "French", "German"],
+            index = 0,
+            key="target_language"  
+        )
+    
+    with col2:
+        # Translate button inside function
+        if st.button("🌍 Translate Document", type="primary"):
+            uploaded_content = st.session_state.get('original_file_bytes')
+            if not uploaded_content:
+                st.error("❌ No document content available for translation")
+            else:
+                with st.spinner(f"Translating document to {st.session_state.target_language}..."):
+                    try:
+                        # LANGUAGE MAPPING
+                        language_map = {
+                            "English": "en",
+                            "Indonesian": "id",
+                            "Thai": "th",
+                            "Traditional Chinese": "zh-tw",
+                            "Simplified Chinese": "zh-ch",
+                            "Spanish": "es",
+                            "French": "fr",
+                            "German": "de"
+                        }
+                        mapped_language = language_map.get(st.session_state.target_language, st.session_state.target_language)
 
-                    translations = translate_document(tmp_file_path, [mapped_language])
-                    
-                    if "error" in translations:
-                        st.error(f"❌ Translation failed: {translations['error']}")
+                        # Save temp file
+                        suffix = ".pdf" if st.session_state.uploaded_file_name.lower().endswith(".pdf") else ".docx"
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                            tmp_file.write(uploaded_content)
+                            tmp_file_path = tmp_file.name
+
+                        translations = translate_document(tmp_file_path, [mapped_language])
+                        
+                        if "error" in translations:
+                            st.error(f"❌ Translation failed: {translations['error']}")
+                            st.session_state.translated_text = None 
+                        else:
+                            st.session_state.translated_text = translations.get(mapped_language, "Translation failed (Key not found after success)")
+                            st.success(f"✅ Document translated to {st.session_state.target_language}!")
+
+                    except Exception as e:
+                        st.error(f"❌ Translation failed: {str(e)}")
                         st.session_state.translated_text = None 
-                    else:
-                        st.session_state.translated_text = translations.get(mapped_language, "Translation failed (Key not found after success)")
-                        st.success(f"✅ Document translated to {st.session_state.target_language}!")
-
-                except Exception as e:
-                    st.error(f"❌ Translation failed: {str(e)}")
-                    st.session_state.translated_text = None 
 
     # Display translation + download
     translated_text = st.session_state.get("translated_text")
     if translated_text:
-        st.markdown("---")
-        st.markdown(f"**📄 Translation Preview ({st.session_state.target_language}):**")
-        st.text_area("Translated Document", translated_text, height=400)
-
-        st.download_button(
-            label=f"📥 Download Translated Document ({st.session_state.target_language})",
-            data=translated_text,
-            file_name=f"{st.session_state.uploaded_file_name}_translated_{st.session_state.target_language}.txt",
-            mime="text/plain"
-        )
+        with st.expander(f"View Translated Document ({st.session_state.target_language})"):
+            st.text_area(f"Translated_document", translated_text, height=400, label_visibility="collapsed")
+            st.download_button(
+                label=f"📥 Download Translated Document ({st.session_state.target_language})",
+                data=translated_text,
+                file_name=f"{st.session_state.uploaded_file_name}_translated_{st.session_state.target_language}.txt",
+                mime="text/plain"
+            )
 
 def create_contract_verification_section():
     """Section 3: AI Contract Verification"""
@@ -475,70 +470,19 @@ def create_contract_verification_section():
     """, unsafe_allow_html=True)
     
     col1, col2 = st.columns([3, 1])
-    
+
     with col1:
-        # Checklist of what to verify
-        st.write("**Analysis Checklist:**")
-        
-        checks = [
-            "Lease duration and renewal terms",
-            "Rent amount and payment schedule",
-            "Security deposit requirements",
-            "Tenant and landlord responsibilities",
-            "Maintenance and repair obligations",
-            "Termination and notice periods",
-            "Prohibited activities",
-            "Legal compliance with local laws"
-        ]
-        
-        for check in checks:
-            st.checkbox(check, key=f"check_{check}", disabled=True)
-        
-        # Code space for AI verification
-        with st.expander("🔧 AI Verification Code Space", expanded=False):
-            st.code("""
-# === CONTRACT VERIFICATION CODE ===
-# TODO: Implement AI contract verification logic here
-
-def analyze_contract_terms(document_text, llm):
-    '''
-    Analyze tenancy agreement for key terms and compliance
-    
-    Args:
-        document_text: The full text of the contract
-        llm: Language model for analysis
-        
-    Returns:
-        dict: Analysis results with findings
-    '''
-    
-    analysis_prompt = '''
-    Analyze this tenancy agreement and provide:
-    1. Key terms (rent, duration, deposit)
-    2. Tenant obligations
-    3. Landlord obligations
-    4. Potential issues or unfair terms
-    5. Missing standard clauses
-    6. Legal compliance concerns
-    '''
-    
-    # TODO: Implement actual AI analysis
-    
-    results = {
-        "key_terms": {},
-        "obligations": {},
-        "issues": [],
-        "compliance": "pending"
-    }
-    
-    return results
-
-# Run analysis
-if st.session_state.conversation_chain:
-    results = analyze_contract_terms(document_text, llm)
-    st.session_state.verification_results = results
-            """, language="python")
-    
+        st.subheader("Choose Analysis Engine")
+        analysis_mode = st.radio(
+            "Choose engine:",
+            ["Fast","Thorough"],
+            captions=["Compares against checklist for a quick overview.","Compares against legal database for a detailed report."],
+            index=0,
+            key="analysis_mode_ratio",
+            label_visibility="collapsed"
+            )
+        st.session_state.analysis_mode = analysis_mode
+      
     with col2:
         if st.button("▶️ Analyze Contract", type="primary"):
             uploaded_content = st.session_state.get('uploaded_file_content')
@@ -587,23 +531,8 @@ if st.session_state.conversation_chain:
     
     # Display results if available
     if st.session_state.verification_results:
-        st.markdown("---")
-        st.markdown("**Analysis Results:**")
-        
-        # Placeholder for results display
-        result_tabs = st.tabs(["📋 Summary", "⚠️ Issues", "✅ Compliance", "📊 Recomendations"])
-        
-        with result_tabs[0]:
-            st.markdown(st.session_state.verification_results)
-
-        with result_tabs[1]:
-            st.markdown("Issues will be displayed here")
-        
-        with result_tabs[2]:
-            st.info("Compliance status will be displayed here")
-        
-        with result_tabs[3]:
-            st.info("Recomendations will be displayed here")
+        with st.expander("View Analysis Results", expanded=True):
+            st.markdown(st.session_state.verification_results, unsafe_allow_html=True)
 
 def create_chat_section():
     """Section 4: Chatbot"""
@@ -613,49 +542,7 @@ def create_chat_section():
     if not st.session_state.uploaded_file_name:
         st.info("📋 Upload a document first to enable chat")
         return
-    
-    # Code space for chatbot
-    with st.expander("🔧 Chatbot Code Space", expanded=False):
-        st.code("""
-# === CHATBOT CODE ===
-# TODO: Implement chatbot logic here
-
-def setup_chatbot(vectorstore):
-    '''
-    Setup conversational AI for document Q&A
-    
-    Args:
-        vectorstore: Vector database with document embeddings
-        
-    Returns:
-        ConversationalRetrievalChain: Chat chain
-    '''
-    
-    llm = ChatOpenAI(
-        model_name="gpt-4o-mini",
-        temperature=0.7
-    )
-    
-    memory = ConversationBufferMemory(
-        memory_key="chat_history",
-        return_messages=True
-    )
-    
-    chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
-        retriever=vectorstore.as_retriever(),
-        memory=memory
-    )
-    
-    return chain
-
-# Initialize chatbot
-if st.session_state.vectorstore and not st.session_state.conversation_chain:
-    st.session_state.conversation_chain = setup_chatbot(st.session_state.vectorstore)
-        """, language="python")
-    
-    st.markdown("---")
-    
+ 
     # Chat interface
     st.subheader("💭 Ask Questions About Your Agreement")
     
@@ -780,50 +667,7 @@ def create_export_section():
     <p>Export all analysis results, chat history, and findings in a formatted report.</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Code space for export functionality
-    with st.expander("🔧 Export Code Space", expanded=False):
-        st.code("""
-# === EXPORT CODE ===
-# TODO: Implement export logic here
-
-def generate_export_report():
-    '''
-    Generate comprehensive analysis report
-    
-    Returns:
-        str: Formatted report content
-    '''
-    
-    report = f'''
-    TENANCY AGREEMENT ANALYSIS REPORT
-    ================================
-    
-    Document: {st.session_state.uploaded_file_name}
-    Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-    
-    1. RAG VERIFICATION RESULTS
-    ---------------------------
-    {st.session_state.rag_results}
-    
-    2. CONTRACT ANALYSIS
-    -------------------
-    {st.session_state.verification_results}
-    
-    3. CHAT HISTORY
-    --------------
-    {st.session_state.messages}
-    
-    '''
-    
-    return report
-
-# Generate preview
-if st.button("Generate Preview"):
-    report = generate_export_report()
-    st.session_state.export_preview = report
-        """, language="python")
-    
+      
     col1, col2 = st.columns([3, 1])
     
     with col1:
@@ -853,10 +697,7 @@ if st.button("Generate Preview"):
 ---
 
 ## Summary
-This is a placeholder preview. Export functionality to be implemented.
-
-## RAG Verification
-- Status: {st.session_state.rag_results if st.session_state.rag_results else 'Not run'}
+This is the preview of your export. 
 
 ## Contract Analysis
 - Status: {st.session_state.verification_results if st.session_state.verification_results else 'Not run'}
