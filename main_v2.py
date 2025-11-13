@@ -154,6 +154,16 @@ def initialize_session_state():
     if "general_qa_retriever" not in st.session_state:
         st.session_state.general_qa_retriever = general_qa_retriever
     
+    # RAG results state
+    if "rag_results" not in st.session_state:
+        st.session_state.rag_results = None
+
+    # Chatbot state
+    if "vectorstore" not in st.session_state:
+        st.session_state.vectorstore = None
+    if "conversation_chain" not in st.session_state:
+        st.session_state.conversation_chain = None
+
     # Contract verification state
     if "verification_results" not in st.session_state:
         st.session_state.verification_results = None
@@ -804,15 +814,15 @@ def generate_export_report():
     
     1. RAG VERIFICATION RESULTS
     ---------------------------
-    {st.session_state.rag_results}
+    {st.session_state.rag_results or 'Not run'}
     
     2. CONTRACT ANALYSIS
     -------------------
-    {st.session_state.verification_results}
+    {st.session_state.verification_results or 'Not run'}
     
     3. CHAT HISTORY
     --------------
-    {st.session_state.messages}
+    {st.session_state.messages or 'No messages'}
     
     '''
     
