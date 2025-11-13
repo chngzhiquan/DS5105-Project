@@ -3,22 +3,21 @@ import numpy as np
 import textwrap
 import re
 import os
-import json
 import time
 import asyncio
 import PyPDF2
 import docx  
-from io import BytesIO
 from langchain_openai import ChatOpenAI
 from typing import List, Dict, Optional, TypedDict, Any
 from openai import OpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
+from langchain_core.runnables import RunnableParallel
+from langchain_core.output_parsers import StrOutputParser
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import FAISS
@@ -331,6 +330,7 @@ async def check_missing_clauses_node(state: AnalysisGraphState) -> Dict:
     try:
         # Load the checklist
         checklist_path = state["checklist_path"]
+        target_language = state.get("target_language", "English")
         checklist_items = load_checklist(checklist_path)
         master_titles = [item.get("title", "Unknown Item") for item in checklist_items]
         # Get the titles of the clauses the user *actually* has
@@ -356,6 +356,8 @@ async def check_missing_clauses_node(state: AnalysisGraphState) -> Dict:
             {actual_titles}
             
             Report on missing clauses:
+
+            **IMPORTANT:** Translate your final answer entirely into {target_language}
             """
         )
         
@@ -365,7 +367,8 @@ async def check_missing_clauses_node(state: AnalysisGraphState) -> Dict:
         
         report = await chain.ainvoke({
             "master_list": "\n".join(f"- {item}" for item in master_titles),
-            "actual_titles": "\n".join(f"- {title}" for title in parsed_clause_titles)
+            "actual_titles": "\n".join(f"- {title}" for title in parsed_clause_titles),
+            "target_language": target_language
         })
         
         return {"missing_clauses_report": report}
@@ -375,7 +378,7 @@ async def check_missing_clauses_node(state: AnalysisGraphState) -> Dict:
 
 # --- TASK B (Modified Node): Run RAG on Existing Clauses ---
 
-async def _run_rag_for_clause(clause: Clause, retriever: Any) -> str:
+async def _run_rag_for_clause(clause: Clause, retriever: Any, target_language: str) -> str:
     """
     (This is the same helper function as before)
     Runs RAG to check if a single *existing* clause is "up to par".
@@ -394,6 +397,8 @@ async def _run_rag_for_clause(clause: Clause, retriever: Any) -> str:
         
         **User's Clause to Review:**
         {question}
+
+        **IMPORTANT:** Translate your final analysis entirely into {target_language}.
         """
     )
     
@@ -402,15 +407,28 @@ async def _run_rag_for_clause(clause: Clause, retriever: Any) -> str:
     def format_docs(docs):
         return "\n\n---\n\n".join(doc.page_content for doc in docs)
 
-    rag_chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
-        | rag_prompt
-        | llm
-        | StrOutputParser()
-    )
+    chain_setup = RunnableParallel({
+        # The "context" key is populated by this sub-chain:
+        # (Input -> "question" -> retriever -> format_docs)
+        "context": (lambda x: x["question"]) | retriever | format_docs,
+        
+        # The "question" key is populated by this:
+        # (Input -> "question")
+        "question": (lambda x: x["question"]),
+        
+        # The "target_language" key is populated by this:
+        # (Input -> "target_language")
+        "target_language": (lambda x: x["target_language"])
+    })
     
-    # We pass the full clause text as the "question"
-    analysis = await rag_chain.ainvoke(clause.clause_text)
+    # 3. The final chain pipes the setup into the prompt
+    rag_chain = chain_setup | rag_prompt | llm | StrOutputParser()
+    
+    # 4. Invoke the chain with the simple dictionary
+    analysis = await rag_chain.ainvoke({
+        "question": clause.clause_text,
+        "target_language": target_language
+    })
     
     return f"### ✅ Analysis for: {clause.clause_title}\n\n{analysis}"
 
@@ -422,10 +440,11 @@ async def parallel_rag_node(state: AnalysisGraphState) -> Dict:
     print("--- Task B: 🔬 Running Parallel RAG Analyses ---")
     clauses = state["clauses"]
     retriever = state["retriever"]
+    target_language = state.get("target_language", "English")
     
     tasks = []
     for clause in clauses:
-        tasks.append(_run_rag_for_clause(clause, retriever))
+        tasks.append(_run_rag_for_clause(clause, retriever, target_language))
     
     # Run all RAG analyses concurrently
     analyses = await asyncio.gather(*tasks)
@@ -742,7 +761,7 @@ async def run_full_analysis(
     return final_state.get('final_report')
 
 # RAG 1: Ideal Clauses Configuration 
-IDEAL_CLAUSES_FAISS = os.path.join(BACKEND_SCRIPT_DIR, "..", "faiss_index_ideal_clauses") # Maybe remove the ".."
+IDEAL_CLAUSES_FAISS = os.path.join(BACKEND_SCRIPT_DIR, "faiss_index_ideal_clauses") 
 K = 3
 
 # --- GLOBAL RESOURCE INITIALIZATION (RAG 1) ---
@@ -871,7 +890,7 @@ def answer_contextual_question_openai(
         "Maintain the flow of the conversation history. If the user's question relates to a flagged clause, "
         "prioritize the information from the Analysis Report. "
         "Be concise and professional."
-        f"**IMPORTANT:** Translate your final answer entirely into {target_language}"
+        f"**IMPORTANT:** Translate your answer entirely into {target_language}"
     )
     
     messages = [
