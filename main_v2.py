@@ -154,16 +154,6 @@ def initialize_session_state():
     if "general_qa_retriever" not in st.session_state:
         st.session_state.general_qa_retriever = general_qa_retriever
     
-    # RAG results state
-    if "rag_results" not in st.session_state:
-        st.session_state.rag_results = None
-
-    # Chatbot state
-    if "vectorstore" not in st.session_state:
-        st.session_state.vectorstore = None
-    if "conversation_chain" not in st.session_state:
-        st.session_state.conversation_chain = None
-
     # Contract verification state
     if "verification_results" not in st.session_state:
         st.session_state.verification_results = None
@@ -217,17 +207,16 @@ def create_sidebar():
                 ### 🪜 Steps:
                 #### In Sidebar
                 - **Enter** your OpenAI API key
-                - **Choose** analysis engine (Fast or Indexed)
                 #### In Main Page
                 1. **Upload** tenancy agreement PDF  
                 2. **Translate** to your language of choice  
                 3. **Check** AI-powered contract analysis  
                 4. **Chat** with the Chatbot  
-                5. **Export** results  
+                5. **Export** the results  
 
                 ### ⚙️ Requirements:
                 - OpenAI API key  
-                - PDF tenancy agreement
+                - Your PDF Tenancy Agreement
                 """,
             )
 
@@ -454,7 +443,7 @@ def create_translation_section():
     # Display translation + download
     translated_text = st.session_state.get("translated_text")
     if translated_text:
-        with st.expander(f"View Translated Document ({st.session_state.target_language})"):
+        with st.expander(f"📄 View Translated Document ({st.session_state.target_language})"):
             st.text_area(f"Translated_document", translated_text, height=400, label_visibility="collapsed")
             st.download_button(
                 label=f"📥 Download Translated Document ({st.session_state.target_language})",
@@ -541,7 +530,7 @@ def create_contract_verification_section():
     
     # Display results if available
     if st.session_state.verification_results:
-        with st.expander("View Analysis Results", expanded=True):
+        with st.expander("📄 View Analysis Results", expanded=True):
             st.markdown(st.session_state.verification_results, unsafe_allow_html=True)
 
 def create_chat_section():
@@ -677,86 +666,23 @@ def create_export_section():
     <p>Export all analysis results, chat history, and findings in a formatted report.</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Code space for export functionality
-    with st.expander("🔧 Export Code Space", expanded=False):
-        st.code("""
-# === EXPORT CODE ===
-# TODO: Implement export logic here
-
-def generate_export_report():
-    '''
-    Generate comprehensive analysis report
-    
-    Returns:
-        str: Formatted report content
-    '''
-    
-    report = f'''
-    TENANCY AGREEMENT ANALYSIS REPORT
-    ================================
-    
-    Document: {st.session_state.uploaded_file_name}
-    Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-    
-    1. RAG VERIFICATION RESULTS
-    ---------------------------
-    {st.session_state.rag_results or 'Not run'}
-    
-    2. CONTRACT ANALYSIS
-    -------------------
-    {st.session_state.verification_results or 'Not run'}
-    
-    3. CHAT HISTORY
-    --------------
-    {st.session_state.messages or 'No messages'}
-    
-    '''
-    
-    return report
-
-# Generate preview
-if st.button("Generate Preview"):
-    report = generate_export_report()
-    st.session_state.export_preview = report
-        """, language="python")
-    
+   
     col1, col2 = st.columns([3, 1])
     
-    with col1:
-        st.write("**Export Options:**")
-        
-        export_format = st.selectbox(
-            "Select format:",
-            ["PDF Report", "Text File (.txt)", "JSON Data", "Markdown (.md)"]
-        )
-        
-        include_chat = st.checkbox("Include chat history", value=True)
-        include_analysis = st.checkbox("Include AI analysis", value=True)
-        include_rag = st.checkbox("Include RAG verification", value=True)
-    
-    with col2:
-        st.write("**Actions:**")
-        
-        if st.button("🔍 Preview", type="secondary"):
+    with col2:     
+        if st.button("🔍 Preview Results", type="secondary"):
             with st.spinner("Generating preview..."):
-                # TODO: Implement actual preview generation
                 st.session_state.export_preview = f"""
-# TENANCY AGREEMENT ANALYSIS REPORT
-
 **Document:** {st.session_state.uploaded_file_name}
 **Generated:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 ---
 
-## Summary
-This is the preview of your export. 
-
 ## Contract Analysis
-- Status: {st.session_state.verification_results if st.session_state.verification_results else 'Not run'}
+- Status: {st.session_state.verification_results if st.session_state.verification_results else 'None'}
 
 ## Chat History
-- Messages: {st.session_state.messages if st.session_state.messages else 'Not run'}
+- Messages: {st.session_state.messages if st.session_state.messages else 'None'}
 
 ---
 *Generated by LeaseOwl*
@@ -765,19 +691,14 @@ This is the preview of your export.
     
     # Display preview
     if st.session_state.export_preview:
-        st.markdown("---")
-        st.markdown("**📄 Export Preview:**")
         
-        with st.container():
+        with st.expander("📄 View Export Preview", expanded=False):
             st.markdown(st.session_state.export_preview)
-        
-        st.markdown("---")
-        
+             
         col1, col2, col3 = st.columns([1, 1, 1])
         
         with col2:
             if st.button("✅ Confirm & Export", type="primary", use_container_width=True):
-                # TODO: Implement actual export
                 st.download_button(
                     label="📥 Download Report",
                     data=st.session_state.export_preview,
