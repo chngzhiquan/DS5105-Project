@@ -5,11 +5,12 @@
 
 ## 📘 Project Overview
 
-Residential tenancy agreements are often filled with **unclear terms and hidden clauses**, leaving tenants confused or vulnerable to unfair terms.  
-
-**TA Checker** automatically analyzes tenancy contracts, compares them against legal standards, and highlights potential risks — all through an interactive chatbot interface.  
-
-This system is built on a **dual Retrieval-Augmented Generation (RAG)** architecture for precise clause analysis and context-aware Q&A.
+**TA Checker** is an AI-powered tool designed to help tenants and legal professionals **analyze tenancy agreements efficiently.** It:
+Extracts, compares, and evaluates clauses against an ideal template
+Flags ambiguous, missing, or unfair clauses
+Provides context-aware Q&A via an AI chatbot
+Generates professional summary reports
+Goal: Help users understand contracts and make confident decisions in **minutes instead of hours.**
 
 ---
 
@@ -26,35 +27,37 @@ This system is built on a **dual Retrieval-Augmented Generation (RAG)** architec
 
 ## 💡🚀 Key Features
 
-| **Feature** | **Description** |
-|-------------|----------------|
-| **Clause Comparison (RAG 1)** | Performs a deep, clause-by-clause comparison between the uploaded TA and an “ideal” clause database. |
-| **Fast Whole-Doc Mode** | Provides a quick compliance check against a standard CSV checklist for rapid insights. |
-| **Risk Highlighting** | Flags ambiguous, missing, or potentially unfair clauses with risk levels and suggested revisions. |
-| **Explainable AI** | Each critique includes clear reasoning and references to model clauses for transparency. |
-| **Interactive Q&A (RAG 2)** | Users can ask general legal questions or document-specific ones, e.g., “Why was my deposit clause flagged?” |
-| **Automated Report Generation** | Summarizes key findings, risks, and suggestions into a professional review report. |
-| **Multi-Language Support** | Tenancy Agreement can be automatically translated into multiple languages (Indonesian, Chinese, France, Spanish, German).
+| **Feature**                           | **Description**                                                                                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Clause-by-Clause Critique (RAG 1)** | Thoroughly compares each clause in your TA against an “ideal” clause database; provides **risk ratings, feedback, and suggested edits**.              |
+| **Fast Whole-Doc Mode**               | Quick compliance check using a **CSV checklist**, ideal for large documents or rapid insights.                                                        |
+| **Risk Highlighting**                 | Flags ambiguous, missing, or potentially unfair clauses; highlights **critical vs minor issues**.                                                     |
+| **Explainable AI**                    | Provides **clear reasoning** and references to model clauses for every flagged issue.                                                                 |
+| **Context-Aware Chatbot (RAG 2)**     | Ask general or document-specific questions, e.g., “Why was my deposit clause flagged?”; integrates the analysis report for **relevant answers**.      |
+| **Automated Report Generation**       | Summarizes **key findings, risks, and suggestions** into professional reports, ready to share or save.                                                |
+| **Multi-Language Support**            | Translates TAs automatically into multiple languages (English, Indonesian, Chinese, French, Spanish, German, Thai, Traditional & Simplified Chinese). |
+| **Thorough Clause Coverage**          | Supports **deep, clause-level analysis** with full risk context; goes beyond basic compliance checks.                                                 |
+                                             |
 
 ---
 
 ## ⚙️ System Architecture
 
-**TA Checker** is powered by a **dual-RAG** framework for specialized processing and higher accuracy.
+**TA Checker** uses a **dual-RAG** framework for accurate and context-aware analysis
 
 ### 🔹 RAG 1: Clause-by-Clause Critique
-- **Source:** Directory of “ideal” Tenancy Agreement PDFs (`./TA_template`)  
-- **Process:** Splits uploaded TAs into individual clauses → queries a FAISS vector database of ideal clauses.  
+- **Source:** ./TA_template/ — ideal tenancy PDFs 
+- **Process:** Splits uploaded TA into clauses → queries FAISS vector store → returns **detailed clause critique** with risk scores and suggestions.
 - **Output:** Generates detailed clause critiques including **risk level**, **feedback**, and **suggested edits**.
 
 ### 🔹 RAG 2: Context-Aware Chatbot
-- **Source:** `Database Requirements.xlsx` (Q&A pairs and legal commentary)  
-- **Process:** Uses vector retrieval to find relevant answers and integrates the user’s analysis report as context.  
+- **Source:** `Database Requirements.xlsx` — general legal Q&A & commentary
+- **Process:** Vector retrieval + user report context → answers **general and document-specific queries.**
 - **Output:** Provides both **general tenancy guidance** and **document-specific clarifications**.
 
 ### 🔹 Fast (Whole-Doc) Mode
 - **Source:** CSV checklist (`./checklist/checklist.csv`)  
-- **Process:** Skips retrieval; compares the entire document against the checklist for high-level compliance.  
+- **Process:** Skips vector retrieval; compares the entire document against the checklist for **high-level compliance.** 
 
 ---
 
@@ -143,10 +146,11 @@ streamlit run main_v2.py
 - View your report & chat with the AI Assistant.
 
 **📊 Example Outputs**
-- Clause-level feedback with risk ratings
-- Summary report highlighting missing or unfair clauses
-- Chatbot Q&A referencing both general legal knowledge and your uploaded contract
-- Multi-language tenancy agreement translation
+- Detailed clause-level critiques with risk ratings
+- Summary report highlighting missing/unfair clauses
+- Chatbot Q&A referencing both general knowledge and your uploaded TA
+- Multi-language TA translations
+- Whole-Doc mode JSON & Markdown summaries
 
 **🛠️ Whole-Doc Mode**
 - Compares the entire TA with a compliance checklist.
