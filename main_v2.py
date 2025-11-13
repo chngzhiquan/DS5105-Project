@@ -409,18 +409,7 @@ def create_translation_section():
             else:
                 with st.spinner(f"Translating document to {st.session_state.target_language}..."):
                     try:
-                        # LANGUAGE MAPPING
-                        language_map = {
-                            "English": "en",
-                            "Indonesian": "id",
-                            "Thai": "th",
-                            "Traditional Chinese": "zh-tw",
-                            "Simplified Chinese": "zh-ch",
-                            "Spanish": "es",
-                            "French": "fr",
-                            "German": "de"
-                        }
-                        mapped_language = language_map.get(st.session_state.target_language, st.session_state.target_language)
+                        mapped_language = st.session_state.target_language
 
                         # Save temp file
                         suffix = ".pdf" if st.session_state.uploaded_file_name.lower().endswith(".pdf") else ".docx"
