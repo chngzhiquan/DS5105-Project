@@ -1,18 +1,16 @@
-#!/usr/bin/env python3
-
 import streamlit as st
+import asyncio
+import io
 import os
-from typing import Optional, List, Dict, Any
 import tempfile
-import base64
 from datetime import datetime
 from backend_utils_v2 import (
     ideal_clauses_retriever,
     general_qa_retriever,
+    process_pdf_to_clauses,
     initialize_qa_resources,
     answer_contextual_question_openai,
-    generate_ta_report_whole_doc,
-    generate_ta_report,
+    run_full_analysis,
     translate_document
 )
 
@@ -23,20 +21,6 @@ try:
     DOTENV_AVAILABLE = True
 except ImportError:
     DOTENV_AVAILABLE = False
-
-# Core libraries for PDF processing and AI
-try:
-    from langchain_community.document_loaders import PyPDFLoader
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
-    from langchain_community.embeddings import OpenAIEmbeddings
-    from langchain_community.vectorstores import FAISS
-    from langchain_community.chat_models import ChatOpenAI
-    from langchain.chains import ConversationalRetrievalChain
-    from langchain.memory import ConversationBufferMemory
-    import openai
-    LANGCHAIN_AVAILABLE = True
-except ImportError:
-    LANGCHAIN_AVAILABLE = False
 
 # Page configuration
 st.set_page_config(
@@ -147,9 +131,15 @@ def initialize_session_state():
     # File upload state
     if "uploaded_file_name" not in st.session_state:
         st.session_state.uploaded_file_name = None
+
+    if "original_file_bytes" not in st.session_state:
+        st.session_state.original_file_bytes = None
     
     if "uploaded_file_content" not in st.session_state:
         st.session_state.uploaded_file_content = None
+
+    if 'parsed_clauses' not in st.session_state:
+        st.session_state.parsed_clauses = None
     
     # Default language
     if "target_language" not in st.session_state:
@@ -187,10 +177,52 @@ def create_sidebar():
     """Create sidebar with configuration and info"""
     
     with st.sidebar:
-        st.image("Logo.jpeg", use_container_width=True)
         
+        ## Logo
+        st.image("Logo.jpeg", use_container_width=True)
         st.markdown("---")
         
+        # About us
+        with st.expander("🦉 About Us", expanded=False):
+            st.markdown(
+                """
+                <div style="text-align: center;">
+                    <h3 style="margin-bottom: 0;">LeaseOwl</h3>
+                    <p style="font-size: 15px; margin-top: 2px; color: #666;">Know Your Lease</p>
+                </div>
+                <hr style="margin: 4px 0;">
+                <p style="font-size: 14px; line-height: 1.5; text-align: justify;">
+                    A <b>GenAI-powered assistant</b> designed to automate the review of tenancy agreements, 
+                    providing tenants with instant clarity, actionable feedback, and on-demand contextual answers 
+                    — so you can sign with confidence.
+                </p>
+                """,
+                unsafe_allow_html=True
+            )
+
+        # Help Section
+        with st.expander("ℹ️ How to Use", expanded=False):
+            st.markdown(
+                """
+                ### 🪜 Steps:
+                #### In Sidebar
+                - **Enter** your OpenAI API key
+                - **Choose** analysis engine (Fast or Indexed)
+                #### In Main Page
+                1. **Upload** tenancy agreement PDF  
+                2. **Translate** to your language of choice  
+                3. **Check** AI-powered contract analysis  
+                4. **Chat** with the Chatbot  
+                5. **Export** results  
+
+                ### ⚙️ Requirements:
+                - OpenAI API key  
+                - PDF tenancy agreement
+                """,
+            )
+
+        st.markdown("---")
+
         # API Key management
         st.subheader("🔑 API Configuration")
         
@@ -259,29 +291,24 @@ def create_sidebar():
                 st.session_state.export_preview = None
                 st.rerun()
         
-        st.markdown("---")
-        
-        # Help section
-        with st.expander("ℹ️ How to Use"):
-            st.markdown("""
-            ### Steps:
-            1. **Upload** tenancy agreement PDF
-            2. **Translate** to your language of choice
-            3. **Check** AI contract analysis
-            4. **Chat** with the Chatbot
-            5. **Export** results
-            
-            ### Requirements:
-            - OpenAI API key
-            - PDF tenancy agreement
-            """)
-        
-        st.markdown("---")
         
         # About
-        st.caption("**LeaseOwl v1.0**")
-        st.caption("Tenancy Agreement Analyzer")
-        st.caption("© 2025 All rights reserved")
+        st.markdown(
+            """
+            <div style='text-align: center;'>
+                <p style='font-size: 14px; color: grey; margin-bottom: 0;'>
+                    <b>LeaseOwl v1.0</b>
+                </p>
+                <p style='font-size: 13px; margin-top: 2px; margin-bottom: 0;'>
+                    Your Tenancy Agreement Assistant
+                </p>
+                <p style='font-size: 12px; color: #999; margin-top: 2px;'>
+                    © 2025 All rights reserved
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 def create_upload_section():
     """Section 1: Upload PDF file"""
@@ -328,9 +355,26 @@ def process_uploaded_document(uploaded_file) -> bool:
     """Process the uploaded PDF document"""
     
     try:
-        # Save file content
-        st.session_state.uploaded_file_content = uploaded_file.getvalue()   
-        return True
+        file_bytes = uploaded_file.getvalue()
+        st.session_state.original_file_bytes = file_bytes
+        
+        # 1. Create an in-memory buffer from the bytes
+        file_buffer = io.BytesIO(file_bytes)
+        
+        # 2. Pass the BUFFER (not bytes) to your backend function
+        result = process_pdf_to_clauses(file_buffer)
+        
+        if result:
+            # 3. Unpack the two return values
+            raw_text, clauses = result
+            
+            # 4. Save results to session state
+            st.session_state.uploaded_file_content = raw_text # This is now the extracted text
+            st.session_state.parsed_clauses = clauses 
+            return True
+        else:
+            st.error("Error: Failed to process PDF (backend returned None).")
+            return False
         
     except Exception as e:
         st.error(f"Error: {str(e)}")
@@ -362,7 +406,7 @@ def create_translation_section():
     
     # Translate button inside function
     if st.button("🌍 Translate Document", type="primary"):
-        uploaded_content = st.session_state.get('uploaded_file_content')
+        uploaded_content = st.session_state.get('original_file_bytes')
         if not uploaded_content:
             st.error("❌ No document content available for translation")
         else:
@@ -501,52 +545,45 @@ if st.session_state.conversation_chain:
             if not uploaded_content:
                 st.error("❌ No document content available for analysis")
                 return
-            # Initialise temporary file
-            temp_file_path = None
-            with st.spinner("Analyzing contract..."):
+            with st.spinner("Analyzing contract... (This may take a moment)"):
                 try:
-                    file_extension = os.path.splitext(st.session_state.get('uploaded_file_name','.pdf'))[1]
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
-                        tmp_file.write(uploaded_content)
-                        temp_file_path = tmp_file.name
-                    target_language = st.session_state.get("target_language", "English")    
-                    analysis_mode = st.session_state.get("analysis_mode", "Fast (Whole-Doc, No Index)")
-                    if str(analysis_mode).startswith("Fast"):
-                        # Whole-Doc (no RAG)
-                        checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
-                        if not os.path.exists(checklist_path):
-                            st.error(f"Checklist not found: {checklist_path}")
-                            return
-                        report_md, report_json = generate_ta_report_whole_doc(
-                            USER_UPLOADED_FILE_PATH=temp_file_path,
-                            checklist_path=checklist_path,
-                            target_language=target_language
-                        )
-                        st.session_state.verification_results = report_md      # string for display
-                        st.session_state.verification_json = report_json       # structured data if you need it     
-                        st.success("✅ Contract analysis completed! (Whole-Doc)")
-                    else:
-                        # Indexed RAG1 (original flow)
-                        ideal_retriever = st.session_state.get("ideal_clauses_retriever", None)
-                        if ideal_retriever is None:
-                            st.error("RAG1 index not loaded. Please build/load the Ideal Clauses index.")
-                            return
-
-                        report, review_prompt = generate_ta_report(
-                            USER_UPLOADED_FILE_PATH=temp_file_path,
-                            ideal_clauses_retriever=ideal_retriever
-                        )
-                        st.session_state.verification_results = report
-                        st.session_state.verification_raw = review_prompt
-                        st.success("✅ Contract analysis completed! (RAG1)")
+                    # Get the necessary data from session state
+                    clauses = st.session_state.parsed_clauses
+                    raw_text = st.session_state.uploaded_file_content
                     
+                    if not raw_text:
+                        st.error("❌ Failed to read text from the stored file.")
+                        return
+
+                    # Get analysis config from session state
+                    target_language = st.session_state.get("target_language", "English")
+                    analysis_mode_str = st.session_state.get("analysis_mode", "Fast")
+                    checklist_path = st.session_state.get("checklist_path", "./checklist/checklist.csv")
+                    
+                    if not os.path.exists(checklist_path):
+                        st.error(f"Checklist file not found at: {checklist_path}")
+                        return
+
+                    # 5. Determine mode for LangGraph
+                    mode = "fast" if str(analysis_mode_str).startswith("Fast") else "thorough"
+
+                    # 6. Run Full Analysis (from utils.py)
+                    # We pass in the data we just retrieved from session state
+                    report_md = asyncio.run(run_full_analysis(
+                        raw_text=raw_text,
+                        clauses=clauses,
+                        checklist_path=checklist_path,
+                        target_language=target_language,
+                        analysis_mode=mode
+                    ))
+                    
+                    # 7. Save the final report
+                    st.session_state.verification_results = report_md
+                    st.success(f"✅ Contract analysis completed! (Mode: {mode})")
+                
                 except Exception as e:
                     st.error(f"❌ Analysis failed: {str(e)}")
                     st.session_state.verification_results = None
-                    st.session_state.rag_results = None
-                finally:
-                    if temp_file_path and os.path.exists(temp_file_path):
-                        os.unlink(temp_file_path)
     
     # Display results if available
     if st.session_state.verification_results:
@@ -905,7 +942,7 @@ def main():
     st.markdown("""
     <div style="text-align: center; color: #666; padding: 2rem;">
         <p><strong>LeaseOwl</strong> - Your Tenancy Agreement Assistant</p>
-        <p>Built with ❤️ using Streamlit & OpenAI</p>
+        <p>Built with ❤️ DSS5105 Data Science Projects in Practice</p>
     </div>
     """, unsafe_allow_html=True)
 

@@ -2,52 +2,57 @@ import pandas as pd
 import numpy as np
 import textwrap
 import re
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_core.documents import Document
+import os
 import json
 import time
-from typing import List, Dict, Optional, Any
+import asyncio
+import PyPDF2
+import docx  
+from io import BytesIO
+from langchain_openai import ChatOpenAI
+from typing import List, Dict, Optional, TypedDict, Any
 from openai import OpenAI
 from dotenv import load_dotenv
-import os
+from pydantic import BaseModel, Field
+from pypdf import PdfReader
+from langchain_text_splitters.character import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
+from langgraph.graph import StateGraph, END
 
-# Get the directory of the currently executing file (backend_utils.py)
+# Get the directory of the currently executing file
 BACKEND_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# --- EMBEDDING MODEL CONFIGURATION ---
+# Embedding model configuration
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 K = 3 # Number of top results to retrieve
 embeddings = HuggingFaceEmbeddings(model_name=MODEL_NAME)
 
-# --- LLM CONFIGURATION for OpenAI ---
-# Recommended model for this task (fast and good at structured output)
+# LLM configuration for openai
 LLM_MODEL = "gpt-4o-mini" 
 MAX_RETRIES = 3
-load_dotenv()  # Load environment variables from a .env file if present
+load_dotenv()  # Load environment variables
 api_key_from_env = os.getenv("OPENAI_API_KEY") # Get the API key from the environment variable
 
+# Pass the key explicitly to ensure the client is initialized correctly
 if api_key_from_env:
     try:
-        # Pass the key explicitly to ensure the client is initialized correctly
         client = OpenAI(api_key=api_key_from_env)
         print("OpenAI client initialized successfully from environment variable.")
     except Exception as e:
         print(f"FATAL ERROR: Failed to initialize OpenAI client even with key. Error: {e}")
         client = None
 else:
-    # If the key is not found, print a clear warning and set client to None
     print("OPENAI_API_KEY environment variable is NOT set.")
     client = None
 
-# --- RAG 1: Ideal Clauses (The 'Gold Standard' for Comparison) ---
+# Building RAG 1: Ideal Clauses
 def build_ideal_clauses_retriever(data_directory="./TA_template", faiss_index_path="./faiss_index_ideal_clauses"):
-    """
-    Loads, chunks, and indexes the ideal tenancy agreement PDFs (RAG 1 source).
-    Returns a LangChain FAISS Retriever.
-    """
     print("\n--- BUILDING RAG 1: IDEAL CLAUSES RETRIEVER ---")
     
     # 1. Load Documents
@@ -95,11 +100,9 @@ def build_ideal_clauses_retriever(data_directory="./TA_template", faiss_index_pa
     vectorstore.save_local(faiss_index_path)
     print(f"FAISS index saved to {faiss_index_path}.")
 
-# --- RAG 2: General Q&A (Excel Source) ---
+# Build RAG 2: General Q&A
 def build_general_qa_retriever(file_path, faiss_index_path="./faiss_index_general_qa"):
-    """
-    Loads data from the Excel file, converts it to Documents, and creates a FAISS retriever.
-    """
+
     print("\n--- BUILDING RAG 2: GENERAL Q&A RETRIEVER ---")
     
     # 1. Load and process data (using the existing logic)
@@ -173,245 +176,573 @@ def load_retriever(FAISS_INDEX_PATH, K):
     # 2. Return Retriever
     return vectorstore.as_retriever(search_kwargs={"k": K})
 
-def load_and_extract_pdf_text(file_path: str) -> str:
+def load_and_extract_pdf_text(pdf_file) -> str:
     """
-    Checks if a file is a PDF, loads it, and extracts all text content.
+    Extracts text from an IN-MEMORY PDF file (from st.file_uploader)
+    and applies regex cleanup.
     
     Args:
-        file_path: The local path to the user's uploaded file.
-
+        pdf_file: The in-memory file object (e.g., from io.BytesIO).
+    
     Returns:
         A single string containing all text from the PDF.
-
-    Raises:
-        ValueError: If the file is not found or is not a PDF.
     """
-    print(f"\n--- Loading and Extracting Text from: {file_path} ---")
-
-    # 1. Basic File Check
-    if not os.path.exists(file_path):
-        raise ValueError(f"Error: File not found at path: {file_path}")
-
-    # 2. PDF Extension Check (Simple approach)
-    if not file_path.lower().endswith('.pdf'):
-        raise ValueError(f"Error: File is not a PDF ('.pdf' extension required).")
-
+    print("--- 💬 Extracting text from in-memory PDF ---")
+    
+    # This function does NOT check for a file path.
+    # It reads the in-memory object directly.
+    
     try:
-        # 3. Use LangChain's PyPDFLoader for robust text extraction
-        loader = PyPDFLoader(file_path)
+        # Use pypdf.PdfReader to read the file-like object
+        reader = PdfReader(pdf_file)
         
-        # Load all pages as a list of Document objects
-        pages = loader.load()
+        pages = reader.pages
         print(f"Successfully loaded {len(pages)} pages.")
 
-        # 4. Concatenate all page content into a single string
-        full_text = "\n\n".join(page.page_content for page in pages)
+        # Concatenate all page content
+        full_text = "\n\n".join(page.extract_text() for page in pages if page.extract_text())
         
-        # Simple cleanup (optional, but helps with messy PDF parsing)
-        full_text = re.sub(r'\s{2,}', ' ', full_text) # Replace multiple spaces/newlines with single space
-        full_text = re.sub(r'(\n\s*){2,}', '\n\n', full_text) # Preserve paragraph breaks
+        # Your regex cleanup
+        full_text = re.sub(r'\s{2,}', ' ', full_text)
+        full_text = re.sub(r'(\n\s*){2,}', '\n\n', full_text)
 
         print("Text extraction complete.")
         return full_text
     
     except Exception as e:
-        # Catch errors during PDF parsing
+        print(f"An error occurred during PDF text extraction: {e}")
         raise RuntimeError(f"An error occurred during PDF text extraction: {e}")
 
-def split_user_document(user_uploaded_text: str, source_name: str = "User TA") -> list[Document]:
+# New code for new thorough mode
+class Clause(BaseModel):
+    clause_title: str = Field(description="The clause number and title, e.g., '5. Maintenance' or '3. Security Deposit'")
+    clause_text: str = Field(description="The full, verbatim text of the clause.")
+
+class ParsedAgreement(BaseModel):
+    clauses: List[Clause]
+
+# Build parser chain
+def get_parser_chain():
     """
-    Splits the raw text of the user-uploaded tenancy agreement into clause-level chunks.
+    Creates and returns a runnable chain for parsing text.
+    This replaces the parse_agreement_node.
+    """
+    print("--- 👨‍🔧 Building Parser Chain ---")
+    
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    structured_llm = llm.with_structured_output(ParsedAgreement)
+    
+    system_prompt = """
+    You are an expert legal document parser. Your sole job is to read the
+    following tenancy agreement and convert it into a structured list of its
+    distinct clauses.
+    
+    Carefully extract each clause, using its number and title (e.g., '4. Security Deposit')
+    as the 'clause_title' and the full text of that clause as the 'clause_text'.
+    Ensure you capture all clauses from start to finish.
+    """
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "Please parse this tenancy agreement:\n\n{agreement_text}")
+    ])
+    
+    parser_chain = prompt | structured_llm
+    return parser_chain
 
-    Args:
-        user_uploaded_text: The raw string content of the user's document.
-        source_name: A metadata tag to identify the source (e.g., the filename).
+# Create the Chain (Run Once) 
+print("--- 🚀 Building Parser Chain... ---")
+parse_chain = get_parser_chain()
+print("--- ✅ Parser Chain built! ---")
 
+# Convert pdf to clauses
+def process_pdf_to_clauses(uploaded_file) -> tuple[str, List[Clause]] | None:
+    """
+    The main processing function for PARSING ONLY.
+    It handles PDF extraction and calls the simple parse_chain.
+    
     Returns:
-        A list of LangChain Document objects, one for each clause/chunk.
+        A tuple of (raw_text, clauses), or None on failure.
     """
-    print(f"\n--- SPLITTING USER DOCUMENT: {source_name} ---")
-
-    # The same structure-aware separators used for your Ideal Clauses (RAG 1)
-    custom_separators = [
-        "\n\n",
-        r"\n\s*[A-Z]+\s+\d*\s*\.",
-        r"\n\s*\d+\.\d*\s*",
-        r"\n\s*\([a-zA-Z0-9]+\)\s*",
-        "\n", " ", ""
-    ]
-
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000, 
-        chunk_overlap=200,
-        separators=custom_separators,
-        is_separator_regex=True
-    )
-
-    # 1. Convert the single raw string into a list of Documents (one initial document)
-    initial_document = [
-        Document(page_content=user_uploaded_text, metadata={"source": source_name})
-    ]
-
-    # 2. Split the document based on the clause structure
-    user_chunks = text_splitter.split_documents(initial_document)
     
-    print(f"User TA split into {len(user_chunks)} clause-level chunks.")
+    # Step 1: Extract text from the PDF
+    # (This assumes uploaded_file is an in-memory object)
+    raw_text = load_and_extract_pdf_text(uploaded_file)
     
-    # Optional: Print a preview of the first few chunks
-    for i, chunk in enumerate(user_chunks[:3]):
-        preview = chunk.page_content[:150].replace("\n", " ")
-        print(f"  Chunk {i+1} (Length: {len(chunk.page_content)}): {preview}...")
-    
-    return user_chunks
-
-def llm_compare_and_critique_openai(
-    user_clause_text: str, 
-    ideal_context_docs: List[Document]
-) -> Dict:
-    """
-    Compares a user's tenancy clause against retrieved ideal context using the OpenAI API.
-    
-    The function uses structured JSON output enforcement for reliability.
-
-    Args:
-        user_clause_text: The content of the user's clause chunk.
-        ideal_context_docs: A list of relevant ideal clauses retrieved from the RAG 1 Vector Store.
+    if not raw_text or raw_text.strip() == "":
+        print("--- ❌ PDF extraction failed or file is empty. ---")
+        return None
         
-    Returns:
-        A dictionary containing the feedback, risk level, and suggestions.
+    # Step 2: Run the compiled "Parser Chain"
+    print("--- 🚀 Invoking parse_chain... ---")
+    try:
+        parsed_agreement = parse_chain.invoke({"agreement_text": raw_text})
+        
+        # Step 3: Return BOTH the raw text and the parsed clauses
+        return raw_text, parsed_agreement.clauses
+        
+    except Exception as e:
+        print(f"Error during LLM parsing: {e}")
+        return None
+
+class AnalysisGraphState(TypedDict):
     """
-    if not client:
-        return {
-            "clause_summary": "API Initialization Failed",
-            "risk_level": "HIGH",
-            "feedback": "OpenAI client is not configured correctly. Check API key.",
-            "suggestion": "Set the OPENAI_API_KEY environment variable."
-        }
+    The state for our analysis-only graph.
+    """
+    analysis_mode: str
+    raw_text: str
+    clauses: List[Clause] 
+    retriever: Any
+    checklist_path: str
+    target_language: str
+    missing_clauses_report: str
+    clause_analyses: List[str]
+    final_report: str
 
-    print(f"\n[CRITIQUE] Analyzing clause with GPT: {user_clause_text[:50]}...")
-
-    # 1. FORMAT THE CONTEXT FOR THE LLM
-    context_str = "\n---\n".join([doc.page_content for doc in ideal_context_docs])
-
-    # 2. DEFINE THE JSON SCHEMA
-    response_schema = {
-        "type": "object",
-        "properties": {
-            "clause_summary": {"type": "string", "description": "A brief (1-sentence) summary of the user clause's main topic."},
-            "risk_level": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"], "description": "The risk level (LOW, MEDIUM, or HIGH) for the tenant based on deviations from the ideal."},
-            "feedback": {"type": "string", "description": "Specific, actionable criticism on what is missing or concerning in the User Clause."},
-            "suggestion": {"type": "string", "description": "A brief sentence on how the user should attempt to modify the clause."}
-        },
-        "required": ["clause_summary", "risk_level", "feedback", "suggestion"]
-    }
+def setup_retriever_node(state: AnalysisGraphState) -> dict:
+    """
+    Loads the pre-built 'Ideal Clauses' retriever from disk.
+    This is Node 2 in our graph, running after the parser.
+    """
+    print("--- 📚 Calling setup_retriever_node ---")
     
-    # 3. DEFINE SYSTEM INSTRUCTION
-    schema_str = json.dumps(response_schema, indent=2)
+    try:
+        # This is for the "Thorough Mode" RAG analysis
+        IDEAL_CLAUSES_FAISS = os.path.join(BACKEND_SCRIPT_DIR,"faiss_index_ideal_clauses")
+        ideal_retriever = load_retriever(IDEAL_CLAUSES_FAISS, K=3)
+        
+        # Save the retriever to the graph's state
+        # The 'AnalysisGraphState' TypedDict must have a 'retriever' key
+        return {"retriever": ideal_retriever}
+    
+    except FileNotFoundError as e:
+        print(f"CRITICAL ERROR: {e}")
+        # Re-raise the error to stop the graph and alert the developer
+        raise e
+
+# --- TASK A (New Node): Check for Missing Clauses ---
+async def check_missing_clauses_node(state: AnalysisGraphState) -> Dict:
+    """
+    Uses an LLM to compare the parsed clauses against the 
+    MASTER_CHECKLIST to find what's missing.
+    """
+    print("--- Task A: 🕵️ Checking for Missing Clauses ---")
+    
+    try:
+        # Load the checklist
+        checklist_path = state["checklist_path"]
+        checklist_items = load_checklist(checklist_path)
+        master_titles = [item.get("title", "Unknown Item") for item in checklist_items]
+        # Get the titles of the clauses the user *actually* has
+        parsed_clause_titles = [c.clause_title for c in state["clauses"]]
+        
+        prompt = ChatPromptTemplate.from_template(
+            """
+            You are a legal analyst. Your job is to check if a tenancy 
+            agreement is missing any critical clauses.
+            
+            Compare the "Master Checklist" (what *should* be present) 
+            against the "Actual Clause Titles" (what *was* parsed 
+            from the user's document).
+            
+            Identify and list any topics from the Master Checklist that 
+            are NOT covered by the Actual Clause Titles. For each 
+            missing topic, briefly state its importance.
+            
+            Master Checklist:
+            {master_list}
+            
+            Actual Clause Titles:
+            {actual_titles}
+            
+            Report on missing clauses:
+            """
+        )
+        
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        
+        chain = prompt | llm | StrOutputParser()
+        
+        report = await chain.ainvoke({
+            "master_list": "\n".join(f"- {item}" for item in master_titles),
+            "actual_titles": "\n".join(f"- {title}" for title in parsed_clause_titles)
+        })
+        
+        return {"missing_clauses_report": report}
+    except Exception as e:
+        print(f"Error in missing clause check: {e}")
+        return {"missing_clauses_report": "Error: Could not perform missing clause check."}
+
+# --- TASK B (Modified Node): Run RAG on Existing Clauses ---
+
+async def _run_rag_for_clause(clause: Clause, retriever: Any) -> str:
+    """
+    (This is the same helper function as before)
+    Runs RAG to check if a single *existing* clause is "up to par".
+    """
+    
+    rag_prompt = ChatPromptTemplate.from_template(
+        """
+        You are an expert tenancy agreement reviewer.
+        Compare the "User's Clause" against the "Ideal Legal Context".
+        
+        Identify any risks, unfair terms, or deviations from the 
+        ideal context. State if the clause is fair.
+        
+        **Ideal Legal Context:**
+        {context}
+        
+        **User's Clause to Review:**
+        {question}
+        """
+    )
+    
+    llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
+    
+    def format_docs(docs):
+        return "\n\n---\n\n".join(doc.page_content for doc in docs)
+
+    rag_chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | rag_prompt
+        | llm
+        | StrOutputParser()
+    )
+    
+    # We pass the full clause text as the "question"
+    analysis = await rag_chain.ainvoke(clause.clause_text)
+    
+    return f"### ✅ Analysis for: {clause.clause_title}\n\n{analysis}"
+
+async def parallel_rag_node(state: AnalysisGraphState) -> Dict:
+    """
+    (This is also similar to before)
+    Creates a parallel task for *each* existing clause.
+    """
+    print("--- Task B: 🔬 Running Parallel RAG Analyses ---")
+    clauses = state["clauses"]
+    retriever = state["retriever"]
+    
+    tasks = []
+    for clause in clauses:
+        tasks.append(_run_rag_for_clause(clause, retriever))
+    
+    # Run all RAG analyses concurrently
+    analyses = await asyncio.gather(*tasks)
+    
+    return {"clause_analyses": analyses}
+
+# New "Hub" and "Compiler" Nodes 
+async def run_parallel_analysis_hub(state: AnalysisGraphState) -> Dict:
+    """
+    This is the new "hub" node that runs Task A and Task B
+    at the exact same time.
+    """
+    print("--- 🚀 Kicking off parallel analysis hub ---")
+    
+    # Create the two main tasks
+    task_a = check_missing_clauses_node(state)
+    task_b = parallel_rag_node(state)
+    
+    # Run them concurrently and wait for both to finish
+    results = await asyncio.gather(task_a, task_b)
+    
+    # Merge the results from both tasks into one dictionary
+    # to update the state
+    combined_results = {}
+    combined_results.update(results[0]) # Results from Task A
+    combined_results.update(results[1]) # Results from Task B
+    
+    return combined_results
+
+def compile_thorough_report_node(state: AnalysisGraphState) -> Dict:
+    """
+    Combines the results from both parallel tasks into one
+    final markdown report for the user.
+    """
+    print("---  compiling Thorough Report ---")
+    
+    missing_report = state["missing_clauses_report"]
+    analyses = state["clause_analyses"]
+    
+    # Format the final report
+    final_report = f"""
+    ## 1. Missing Clause Check
+    
+    {missing_report}
+    
+    ---
+    
+    ## 2. Analysis of Existing Clauses
+    
+    {"\n\n---\n\n".join(analyses)}
+    """
+    
+    return {"final_report": final_report}
+
+# Fast Mode
+def compress_ta_text(raw_text: str, max_chars: int = 120_000) -> str:
+    """
+    Lightweight text compression: clean spaces, remove page footers,
+    keep major clauses. If still too long, truncate with short summaries.
+    """
+    import re
+    text = raw_text
+    text = re.sub(r"\s+\n", "\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"-\n", "", text)
+    text = re.sub(r"\n?Page \d+ of \d+\n?", "\n", text, flags=re.IGNORECASE)
+
+    if len(text) <= max_chars:
+        return text
+
+    paras = re.split(r"\n(?=[A-Z ]{3,}\.?(\s|$)|\d{1,2}\.\s)", text)
+    chunks, acc = [], 0
+    for p in paras:
+        p = p.strip()
+        if not p:
+            continue
+        if acc + len(p) <= max_chars:
+            chunks.append(p)
+            acc += len(p)
+        else:
+            head = p[:1000]
+            chunks.append(f"[SUMMARY] {head}")
+            acc += len(head)
+        if acc >= max_chars:
+            break
+    return "\n\n".join(chunks)
+
+
+def load_checklist(checklist_path: str):
+    """
+    Load checklist file (JSON or CSV) and return list of dicts.
+    Expected fields: id, title, requirement, keywords, must_have.
+    """
+    import json, os
+    import pandas as pd
+    ext = os.path.splitext(checklist_path)[1].lower()
+    if ext == ".json":
+        with open(checklist_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else data.get("items", [])
+    elif ext == ".csv":
+        df = pd.read_csv(checklist_path)
+        return df.to_dict(orient="records")
+    else:
+        raise ValueError("Checklist file must be .json or .csv")
+
+
+def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: str = None, target_language: str = "English"):
+    """
+    Compare entire TA (compressed) directly with checklist via LLM.
+    Return structured JSON (no retrieval / embedding required).
+    """
+    import json, time
+    global client, LLM_MODEL
+    if model is None:
+        model = LLM_MODEL
+
+    if client is None:
+        return {
+            "summary": {"compliant": 0, "partial": 0, "missing": len(checklist_items), "overall_risk": "HIGH"},
+            "items": [],
+            "_error": "OpenAI client not configured. Please set OPENAI_API_KEY."
+        }
     system_instruction = (
-        "You are a world-class legal analyst specializing in residential tenancy agreements. "
-        "Your task is to compare a provided 'User Clause' against 'Ideal Clause Examples' "
-        "and generate structured, actionable feedback. Be concise, professional, and focus only on deviations or missing protections for the tenant. "
-        "Your entire output MUST be a single, valid JSON object that strictly adheres to the provided JSON Schema:\n\n"
-        f"--- JSON SCHEMA ---\n{schema_str}\n---"
+        "You are a contract compliance analyst for residential tenancy agreements. "
+        "Return STRICT JSON only. For each checklist item, decide status ∈ "
+        "{COMPLIANT, PARTIAL, MISSING}. Provide evidence (short TA quotes), "
+        "risk (LOW|MEDIUM|HIGH) derived from the loaded checklist's criteria, "
+        "recommendation (specific edit), and location_hint."
+        f"**IMPORTANT:** Translate your final answer entirely into {target_language}"
     )
 
-    # 4. DEFINE THE USER QUERY (THE CORE PROMPT)
-    user_query = textwrap.dedent(f"""
-        Please analyze the following 'User Clause' and compare it to the 'Ideal Clause Examples'.
+    user_query = f"""
+=== TENANCY AGREEMENT (COMPRESSED) ===
+{ta_text}
 
-        **USER CLAUSE TO CRITIQUE:**
-        ---
-        {user_clause_text}
-        ---
+=== CHECKLIST (JSON-LIKE) ===
+{checklist_items}
 
-        **IDEAL CLAUSE EXAMPLES (RAG Context):**
-        ---
-        {context_str}
-        ---
+Return JSON with schema:
+{{
+  "summary": {{
+    "compliant": int, "partial": int, "missing": int,
+    "overall_risk": "LOW"|"MEDIUM"|"HIGH"
+  }},
+  "items": [
+    {{
+      "id": <string|int>,
+      "title": <string>,
+      "status": "COMPLIANT"|"PARTIAL"|"MISSING",
+      "evidence": [<short quotes>],
+      "risk": "LOW"|"MEDIUM"|"HIGH",
+      "recommendation": <string>,
+      "location_hint": <string|null>
+    }}
+  ]
+}}
+STRICT JSON. No commentary.
+""".strip()
 
-        Based on your comparison, provide the analysis in the specified JSON format.
-    """)
-
-    # 5. EXECUTE API CALL WITH EXPONENTIAL BACKOFF
-    for attempt in range(MAX_RETRIES):
+    last_err = ""
+    for _ in range(MAX_RETRIES):
         try:
-            response = client.chat.completions.create(
-                model=LLM_MODEL,
+            resp = client.chat.completions.create(
+                model=model,
                 messages=[
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": user_query}
                 ],
-                # Use the response_format tool for guaranteed JSON output (GPT-4o/GPT-4 models)
-                response_format={"type": "json_object"}, 
-                # Note: The JSON structure is also implicitly constrained by the prompt and system instruction.
-                temperature=0.0 # Use low temperature for analytical tasks
+                response_format={"type": "json_object"},
+                temperature=0.2,
             )
-            
-            # Extract and parse the JSON response text
-            # The entire output text should be a single JSON string
-            json_text = response.choices[0].message.content
-            parsed_json = json.loads(json_text)
-            print(f"... Successful critique generated on attempt {attempt + 1}.")
-            return parsed_json
-            
+            content = resp.choices[0].message.content
+            return json.loads(content)
         except Exception as e:
-            if attempt < MAX_RETRIES - 1:
-                wait_time = 2 ** attempt
-                print(f"OpenAI API Error: {e}. Retrying in {wait_time} seconds...")
-                time.sleep(wait_time)
-            else:
-                print(f"OpenAI API failed after {MAX_RETRIES} attempts.")
-                return {
-                    "clause_summary": "Analysis Failed",
-                    "risk_level": "HIGH",
-                    "feedback": f"Unable to generate critique after {MAX_RETRIES} attempts. Error: {e}",
-                    "suggestion": "Check your API key, model permissions, and rate limits."
-                }
+            last_err = str(e)
+            time.sleep(1.5)
+    return {
+        "summary": {"compliant": 0, "partial": 0, "missing": len(checklist_items), "overall_risk": "HIGH"},
+        "items": [],
+        "_error": f"LLM comparison failed: {last_err}"
+    }
+
+def fast_checklist_node(state: AnalysisGraphState) -> dict:
+    """
+    Generate a report by comparing the entire TA with a checklist (no RAG).
+    Automatically translates the report if target_languages is set.
+    """
+    raw_text = state["raw_text"]
+    checklist_path = state["checklist_path"]
+    target_language = state.get("target_language", "English")
+
+    # 2a. Compress text
+    max_chars = 80_000  
+    ta_comp = compress_ta_text(raw_text, max_chars=max_chars)
     
-    # Should be unreachable
-    return {}
+    # 2b. Load checklist
+    try:
+        checklist = load_checklist(checklist_path)
+    except Exception as e:
+        print(f"Error loading checklist: {e}")
+        return {"final_report": f"Error: Could not load checklist file at {checklist_path}."}
 
-def format_llm_report(feedback_report: List[Dict]) -> str:
-    full_report_sections = []
-    full_report_sections.append("### 📝 Tenancy Agreement Report")
+    # 2c. Compare (This calls your other helper function)
+    result_json = compare_ta_with_checklist_whole(
+        ta_comp, 
+        checklist, 
+        model=LLM_MODEL, 
+        target_language=target_language
+    )
 
-    for i, item in enumerate(feedback_report):
-        # 1. Extract Data for the current clause
-        summary = item.get("clause_summary", "N/A")
-        risk = item.get("risk_level", "LOW")
-        feedback = item.get("feedback", "No specific feedback provided.")
-        suggestion = item.get("suggestion", "No specific suggestion provided.")
+    # 2d. Format into Markdown
+    summary = result_json.get("summary", {})
+    md_parts = [
+        "### Summary",
+        f"- ✅ Compliant: {summary.get('compliant', 0)}",
+        f"- 🟡 Partial: {summary.get('partial', 0)}",
+        f"- ❌ Missing: {summary.get('missing', 0)}",
+        f"- Overall Risk: **{summary.get('overall_risk', 'N/A')}**",
+        "---"
+    ]
+    for item in result_json.get("items", []):
+        location = item.get('location_hint','N/A')
+        evidence_list = item.get('evidence',[])
+        evidence_str = ("; ".join(evidence_list[:3]) or '—')
+        md_parts.append(
+            f"""**[{item.get('status','')}] {item.get('title','(no title)')}** - Risk: **{item.get('risk','')}**"""
+        )
+        if location and location != 'N/A':
+            md_parts.append(f"""- Location: {location}""")
+        if evidence_str != '—':
+            md_parts.append(f"""- Evidence: {evidence_str}""")
+        md_parts.append(
+            f"""- Recommendation: {item.get('recommendation','—')}"""
+        )
 
-        # Determine risk badge
-        risk_color = "🟢"
-        if risk == "HIGH":
-            risk_color = "🔴"
-        elif risk == "MEDIUM":
-            risk_color = "🟠"
+    final_md = "\n\n".join(md_parts) if md_parts else "No findings."
 
-        # --- SECTION START: Clause Header ---
-        full_report_sections.append(f"\n#### 🔍 Analysis for clause {i+1}: {summary}")
-  
-        # --- 2. LLM CRITIQUE (The most important part) ---
-        full_report_sections.append(f"##### {risk_color} Risk Level: **{risk}**")
+    # 3. Write the final report back to the state
+    return {"final_report": final_md}
 
-        full_report_sections.append(f"\n##### 📝 Detailed Critique")
-        full_report_sections.append(f"\n###### {feedback}")
+def route_analysis(state: AnalysisGraphState) -> str:
+    """
+    This is the "router" or "conditional edge" function.
+    It reads 'analysis_mode' from the state and decides the next step.
+    
+    The 'analysis_mode' string ("fast" or "thorough") is passed in
+    from main.py when the graph is first called.
+    """
+    mode = state["analysis_mode"]
+    if mode == "fast":
+        return "fast_mode" # must match the key
+    else:
+        return "thorough_mode"
 
-        full_report_sections.append(f"\n##### 🛠️ Actionable Suggestion")
-        full_report_sections.append(f"\n###### {suggestion}")
-        full_report_sections.append("---")
+print("--- 🚀 Compiling Full Analysis Graph... ---")
+analysis_workflow = StateGraph(AnalysisGraphState)
 
-    return "\n".join(full_report_sections)
+# Add all nodes EXCEPT the parser
+analysis_workflow.add_node("setup_retriever", setup_retriever_node)
+analysis_workflow.add_node("fast_checklist", fast_checklist_node)
+analysis_workflow.add_node("parallel_analysis_hub", run_parallel_analysis_hub)
+analysis_workflow.add_node("compile_thorough_report", compile_thorough_report_node)
 
-# --- RAG 1: Ideal Clauses Configuration ---
-# Construct the absolute path: 
-# Start at the script's dir, go up one (to DS5105-PROJECT), then find the target.
-IDEAL_CLAUSES_FAISS = os.path.join(
-    BACKEND_SCRIPT_DIR,
-    "..",                     # Moves to DS5105-PROJECT/
-    "faiss_index_ideal_clauses" # Finds the folder
+# Set the NEW entry point
+analysis_workflow.set_entry_point("setup_retriever")
+
+# Add the router (this connects setup_retriever to the two paths)
+analysis_workflow.add_conditional_edges(
+    "setup_retriever",
+    route_analysis,
+    {
+        "fast_mode": "fast_checklist",
+        "thorough_mode": "parallel_analysis_hub" 
+    }
 )
+
+# Define the end points for each branch
+analysis_workflow.add_edge("parallel_analysis_hub", "compile_thorough_report")
+analysis_workflow.add_edge("compile_thorough_report", END)
+analysis_workflow.add_edge("fast_checklist", END)
+
+# Compile the final analysis app
+analysis_app = analysis_workflow.compile()
+print("--- ✅ Full Analysis Graph compiled! ---")
+
+async def run_full_analysis(
+    raw_text: str,
+    clauses: List[Clause], 
+    checklist_path: str,
+    target_language: str = "English",
+    analysis_mode: str = "fast"
+) -> str:
+    """
+    The main processing function for FULL ANALYSIS.
+    It takes the raw text (already parsed) and runs the full graph.
+    """
+    print(f"--- 🚀 Invoking full analysis_app (Mode: {analysis_mode})... ---")
+    
+    # The 'raw_text' will be used by the parser node again.
+    # The 'analysis_mode' will be used by the router.
+    inputs = {
+        "raw_text": raw_text,
+        "clauses": clauses, 
+        "checklist_path": checklist_path,
+        "target_language": target_language,
+        "analysis_mode": analysis_mode
+    }
+    
+    # We call 'analysis_app' and use 'ainvoke' for its async nodes
+    final_state = await analysis_app.ainvoke(inputs)
+    
+    # Step 3: Return the final report
+    return final_state.get('final_report')
+
+# RAG 1: Ideal Clauses Configuration 
+IDEAL_CLAUSES_FAISS = os.path.join(BACKEND_SCRIPT_DIR, "..", "faiss_index_ideal_clauses") # Maybe remove the ".."
 K = 3
 
 # --- GLOBAL RESOURCE INITIALIZATION (RAG 1) ---
@@ -423,11 +754,7 @@ except Exception as e:
     ideal_clauses_retriever = None
 
 # --- RAG 2: General Q&A Configuration ---
-GENERAL_QA_FAISS = os.path.join(
-    BACKEND_SCRIPT_DIR,
-    "faiss_index_general_qa" # Finds the folder
-)
-# K is already defined
+GENERAL_QA_FAISS = os.path.join(BACKEND_SCRIPT_DIR,"faiss_index_general_qa" )
 
 # --- GLOBAL RESOURCE INITIALIZATION (RAG 2) ---
 try:
@@ -437,15 +764,7 @@ except Exception as e:
     print(f"CRITICAL: Failed to initialize global RAG components: {e}")
     general_qa_retriever = None
 
-
-# --- Add translation for documents ---
-from io import BytesIO
-import PyPDF2
-import docx  
-from langchain.chat_models import ChatOpenAI
-
-# --- CHANGE THE FUNCTION SIGNATURE ---
-# Accept a file_path (string), not bytes
+# Translation feature
 def translate_document(file_path: str, target_language: list) -> dict:
     """
     Translate the content of a PDF or DOCX document from a file path using OpenAI LLM.
@@ -499,54 +818,6 @@ def translate_document(file_path: str, target_language: list) -> dict:
     except Exception as e:
         # A more general error message
         return {"error": f"Failed to process document: {str(e)}"}
-
-# --------------------------------------------------------------------------------
-
-# Function Integrating LLM and RAG 1 (Report Generation)
-def generate_ta_report(USER_UPLOADED_FILE_PATH, ideal_clauses_retriever):
-    """Generates the tenancy agreement analysis report using RAG 1 and LLM critique."""
-    if ideal_clauses_retriever is None:
-            raise RuntimeError("Report generation failed: Ideal RAG index not loaded.")
-    try:
-        # Load & extract text from the PDF
-        full_user_document_text = load_and_extract_pdf_text(USER_UPLOADED_FILE_PATH)
-
-        # Split the extracted text into clauses
-        user_clause_chunks = split_user_document(
-            full_user_document_text, 
-            source_name=USER_UPLOADED_FILE_PATH
-        )
-
-        # Loop through ALL user clauses for comparison (The RAG Core)
-        feedback_report = []
-        review_prompt = []
-
-        for i, user_clause in enumerate(user_clause_chunks):
-            user_clause_content = user_clause.page_content
-            # Use RAG 1 to retrieve the Ideal Clause context
-            comparison_context = ideal_clauses_retriever.invoke(user_clause_content)
-
-            # Store the prompt structure for review
-            review_prompt.append({
-                "clause_number": i + 1,
-                "user_clause": user_clause_content,
-                "comparison_context": comparison_context,
-            })
-            
-            # LLM Call for feedback
-            feedback = llm_compare_and_critique_openai(user_clause_content, comparison_context)
-            feedback_report.append(feedback)
-
-            # Add the raw feedback to the review data for a complete record
-            review_prompt[-1]["llm_feedback"] = feedback
-
-        print("\n--- Phase 1 Complete: Analysis ready. ---")
-        final_report = format_llm_report(feedback_report)
-        return final_report, review_prompt
-        
-    except (ValueError, RuntimeError) as e:
-        # Handle the specific errors raised by the extraction function
-        print(f"\nFATAL ERROR DURING FILE PROCESSING: {e}")
 
 # Initialisation function for session state
 def initialize_qa_resources(openai_api_key: str):
@@ -655,171 +926,3 @@ def answer_contextual_question_openai(
                 return f"Unable to generate answer after {MAX_RETRIES} attempts. Error: {e}"
     
     return "Unknown error."
-
-# WHOLE-DOC MODE (No RAG, direct TA + checklist comparison)
-def compress_ta_text(raw_text: str, max_chars: int = 120_000) -> str:
-    """
-    Lightweight text compression: clean spaces, remove page footers,
-    keep major clauses. If still too long, truncate with short summaries.
-    """
-    import re
-    text = raw_text
-    text = re.sub(r"\s+\n", "\n", text)
-    text = re.sub(r"[ \t]{2,}", " ", text)
-    text = re.sub(r"-\n", "", text)
-    text = re.sub(r"\n?Page \d+ of \d+\n?", "\n", text, flags=re.IGNORECASE)
-
-    if len(text) <= max_chars:
-        return text
-
-    paras = re.split(r"\n(?=[A-Z ]{3,}\.?(\s|$)|\d{1,2}\.\s)", text)
-    chunks, acc = [], 0
-    for p in paras:
-        p = p.strip()
-        if not p:
-            continue
-        if acc + len(p) <= max_chars:
-            chunks.append(p)
-            acc += len(p)
-        else:
-            head = p[:1000]
-            chunks.append(f"[SUMMARY] {head}")
-            acc += len(head)
-        if acc >= max_chars:
-            break
-    return "\n\n".join(chunks)
-
-
-def load_checklist(checklist_path: str):
-    """
-    Load checklist file (JSON or CSV) and return list of dicts.
-    Expected fields: id, title, requirement, keywords, must_have.
-    """
-    import json, os
-    import pandas as pd
-    ext = os.path.splitext(checklist_path)[1].lower()
-    if ext == ".json":
-        with open(checklist_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, list) else data.get("items", [])
-    elif ext == ".csv":
-        df = pd.read_csv(checklist_path)
-        return df.to_dict(orient="records")
-    else:
-        raise ValueError("Checklist file must be .json or .csv")
-
-
-def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: str = None, target_language: str = "English"):
-    """
-    Compare entire TA (compressed) directly with checklist via LLM.
-    Return structured JSON (no retrieval / embedding required).
-    """
-    import json, time
-    global client, LLM_MODEL
-    if model is None:
-        model = LLM_MODEL
-
-    if client is None:
-        return {
-            "summary": {"compliant": 0, "partial": 0, "missing": len(checklist_items), "overall_risk": "HIGH"},
-            "items": [],
-            "_error": "OpenAI client not configured. Please set OPENAI_API_KEY."
-        }
-    system_instruction = (
-        "You are a contract compliance analyst for residential tenancy agreements. "
-        "Return STRICT JSON only. For each checklist item, decide status ∈ "
-        "{COMPLIANT, PARTIAL, MISSING}. Provide evidence (short TA quotes), "
-        "risk (LOW|MEDIUM|HIGH), recommendation (specific edit), and location_hint."
-        f"**IMPORTANT:** Translate your final answer entirely into {target_language}"
-    )
-
-    user_query = f"""
-=== TENANCY AGREEMENT (COMPRESSED) ===
-{ta_text}
-
-=== CHECKLIST (JSON-LIKE) ===
-{checklist_items}
-
-Return JSON with schema:
-{{
-  "summary": {{
-    "compliant": int, "partial": int, "missing": int,
-    "overall_risk": "LOW"|"MEDIUM"|"HIGH"
-  }},
-  "items": [
-    {{
-      "id": <string|int>,
-      "title": <string>,
-      "status": "COMPLIANT"|"PARTIAL"|"MISSING",
-      "evidence": [<short quotes>],
-      "risk": "LOW"|"MEDIUM"|"HIGH",
-      "recommendation": <string>,
-      "location_hint": <string|null>
-    }}
-  ]
-}}
-STRICT JSON. No commentary.
-""".strip()
-
-    last_err = ""
-    for _ in range(MAX_RETRIES):
-        try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_query}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.2,
-            )
-            content = resp.choices[0].message.content
-            return json.loads(content)
-        except Exception as e:
-            last_err = str(e)
-            time.sleep(1.5)
-    return {
-        "summary": {"compliant": 0, "partial": 0, "missing": len(checklist_items), "overall_risk": "HIGH"},
-        "items": [],
-        "_error": f"LLM comparison failed: {last_err}"
-    }
-
-def generate_ta_report_whole_doc(
-    USER_UPLOADED_FILE_PATH: str,
-    checklist_path: str,
-    mode: str = "fast",
-    target_language: list = None  # default None
-):
-    """
-    Generate a report by comparing the entire TA with a checklist (no RAG).
-    Automatically translates the report if target_languages is set.
-    """
-    raw_text = load_and_extract_pdf_text(USER_UPLOADED_FILE_PATH)
-    max_chars = 80_000 if mode == "fast" else 120_000
-    ta_comp = compress_ta_text(raw_text, max_chars=max_chars)
-    checklist = load_checklist(checklist_path)
-    result_json = compare_ta_with_checklist_whole(ta_comp, checklist, model=None, target_language=target_language)
-
-    summary = result_json.get("summary", {})
-    md_parts = [
-        "### Summary",
-        f"- ✅ Compliant: {summary.get('compliant', 0)}",
-        f"- 🟡 Partial: {summary.get('partial', 0)}",
-        f"- ❌ Missing: {summary.get('missing', 0)}",
-        f"- Overall Risk: **{summary.get('overall_risk', 'N/A')}**",
-        "---"
-    ]
-
-    for item in result_json.get("items", []):
-        md_parts.append(
-f"""**[{item.get('status','')}] {item.get('title','(no title)')}**  
-- Risk: **{item.get('risk','')}**  
-- Location: {item.get('location_hint','N/A')}  
-- Evidence: {("; ".join(item.get('evidence', [])[:3]) or '—')}  
-- Recommendation: {item.get('recommendation','—')}
-"""
-        )
-
-    final_md = "\n\n".join(md_parts) if md_parts else "No findings."
-
-    return final_md, result_json
