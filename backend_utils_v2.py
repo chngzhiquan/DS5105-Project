@@ -657,15 +657,7 @@ def fast_checklist_node(state: AnalysisGraphState) -> dict:
     )
 
     # 2d. Format into Markdown
-    summary = result_json.get("summary", {})
-    md_parts = [
-        "### Summary",
-        f"- ✅ Compliant: {summary.get('compliant', 0)}",
-        f"- 🟡 Partial: {summary.get('partial', 0)}",
-        f"- ❌ Missing: {summary.get('missing', 0)}",
-        f"- Overall Risk: **{summary.get('overall_risk', 'N/A')}**",
-        "---"
-    ]
+    md_parts = []
     for item in result_json.get("items", []):
         location = item.get('location_hint','N/A')
         evidence_list = item.get('evidence',[])
