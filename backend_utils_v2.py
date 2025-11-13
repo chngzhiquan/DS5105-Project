@@ -564,7 +564,6 @@ def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: 
 
     if client is None:
         return {
-            "summary": {"compliant": 0, "partial": 0, "missing": len(checklist_items), "overall_risk": "HIGH"},
             "items": [],
             "_error": "OpenAI client not configured. Please set OPENAI_API_KEY."
         }
@@ -586,10 +585,6 @@ def compare_ta_with_checklist_whole(ta_text: str, checklist_items: list, model: 
 
 Return JSON with schema:
 {{
-  "summary": {{
-    "compliant": int, "partial": int, "missing": int,
-    "overall_risk": "LOW"|"MEDIUM"|"HIGH"
-  }},
   "items": [
     {{
       "id": <string|int>,
@@ -623,7 +618,6 @@ STRICT JSON. No commentary.
             last_err = str(e)
             time.sleep(1.5)
     return {
-        "summary": {"compliant": 0, "partial": 0, "missing": len(checklist_items), "overall_risk": "HIGH"},
         "items": [],
         "_error": f"LLM comparison failed: {last_err}"
     }
