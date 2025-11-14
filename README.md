@@ -1,6 +1,8 @@
 # 🏡 LeaseOwl [TA Checker — AI Tenancy Agreement Clause Analyzer + Chatbot]
 ### *Your AI legal co-pilot for fair tenancy agreements*
 
+![LeaseOwl Logo](Logo.jpeg)
+
 ---
 
 ## 📘 Project Overview
