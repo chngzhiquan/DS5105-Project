@@ -8,7 +8,7 @@
 
 ## 📘 Project Overview
 
-**LeaseOwl** is an AI-powered tool designed to help tenants and legal professionals **analyze tenancy agreements efficiently.** 
+**LeaseOwl** is an AI-powered tool designed to help tenants and legal professionals **analyze tenancy agreements efficiently.**  
 Main functions include:
 - Extracts, compares, and evaluates clauses against an ideal template
 - Flags ambiguous, missing, or unfair clauses
@@ -175,11 +175,11 @@ streamlit run main_v2.py
 - Improved OCR for scanned PDFs
 
 **⚡ References**
-LangChain Documentation
-FAISS Vector Store
-OpenAI GPT API
+LangChain Documentation  
+FAISS Vector Store  
+OpenAI GPT API  
 
-**🧠 Credits**
+**🧠 Credits**  
 Developed as part of the DS5105 Project  
 Built with ❤️ using Streamlit, LangChain, and OpenAI GPT models
 
