@@ -1,5 +1,5 @@
 # 🏡 LeaseOwl - Know Your Lease
-# [TA Checker — AI Tenancy Agreement Clause Analyzer + Chatbot]
+## [AI Tenancy Agreement Analyzer + Chatbot]
 ### *Your AI legal co-pilot for fair tenancy agreements*
 
 ![LeaseOwl Logo](Logo.jpeg)
@@ -8,12 +8,12 @@
 
 ## 📘 Project Overview
 
-**TA Checker** is an AI-powered tool designed to help tenants and legal professionals **analyze tenancy agreements efficiently.** It:
-Extracts, compares, and evaluates clauses against an ideal template
-Flags ambiguous, missing, or unfair clauses
-Provides context-aware Q&A via an AI chatbot
-Generates professional summary reports
-Goal: Help users understand contracts and make confident decisions in **minutes instead of hours.**
+**LeaseOwl** is an AI-powered tool designed to help tenants and legal professionals **analyze tenancy agreements efficiently.** It can:
+- Extracts, compares, and evaluates clauses against an ideal template
+- Flags ambiguous, missing, or unfair clauses
+- Provides context-aware Q&A via an AI chatbot
+- Generates professional summary reports
+- Help users understand contracts and make confident decisions in **minutes instead of hours.**
 
 ---
 
