@@ -155,26 +155,27 @@ streamlit run main_v2.py
 - Multi-language TA translations
 - Whole-Doc mode JSON & Markdown summaries
 
-**🛠️ Whole-Doc Mode**
+**🛠️ Thorough Mode**
 - Compares the entire TA with a compliance checklist.
 - Automatically compresses and summarizes large documents.
 - Returns structured JSON and multi-language Markdown reports.
 
 **🧩 Multi-Language Support**
 - Tenancy Agreement can be translated automatically.
-- Default languages: ["English","Indonesian","Chinese","French","Spanish","German, Thai, Traditional Chinese, Simplified Chinese"]
+- Default languages:  
+  ["English", "Indonesian", "Thai", "Traditional Chinese", Simplified Chinese", "French", "Spanish", "German"]
 
 **📌 Notes**
 - Ensure .env has a valid OPENAI_API_KEY.
 - FAISS indexes must be built before running RAG queries.
-- Whole-Doc mode works independently of RAG indexes.
+- Thorough mode works independently of RAG indexes.
 
 **💡 Future Enhancements**
 - Integration with local legal databases (e.g., CEA Singapore)
 - Enhanced visual reports with clause heatmaps
 - Improved OCR for scanned PDFs
 
-**⚡ References**
+**⚡ References**  
 LangChain Documentation  
 FAISS Vector Store  
 OpenAI GPT API  
