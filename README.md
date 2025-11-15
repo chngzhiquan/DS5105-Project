@@ -2,7 +2,7 @@
 ## [AI Tenancy Agreement Analyzer + Chatbot]
 ### *Your AI legal co-pilot for fair tenancy agreements*
 
-![LeaseOwl Logo](Logo.jpeg)
+![LeaseOwl Logo](https://raw.githubusercontent.com/chngzhiquan/DS5105-Project/main/Logo.jpeg)
 
 ---
 
