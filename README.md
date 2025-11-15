@@ -143,7 +143,7 @@ jupyter notebook test_rag.ipynb
 ### ▶️ **4. Run the App**
 streamlit run main_v2.py
 
-### ❓ FAQ / Troubleshooting
+**❓ FAQ / Troubleshooting**
 - **Q:** Streamlit fails to run  
   **A:** Ensure `.env` contains a valid `OPENAI_API_KEY` and all dependencies are installed. Use `pip install -r requirements.txt`.
 
