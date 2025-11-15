@@ -34,13 +34,13 @@ Main functions include:
 | **Feature**                           | **Description**                                                                                                                                       |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Clause-by-Clause Critique (RAG 1)** | Thoroughly compares each clause in your TA against an “ideal” clause database; provides **risk ratings, feedback, and suggested edits**.              |
-| **Fast Whole-Doc Mode**               | Quick compliance check using a **CSV checklist**, ideal for large documents or rapid insights.                                                        |
-| **Risk Highlighting**                 | Flags ambiguous, missing, or potentially unfair clauses; highlights **critical vs minor issues**.                                                     |
-| **Explainable AI**                    | Provides **clear reasoning** and references to model clauses for every flagged issue.                                                                 |
-| **Context-Aware Chatbot (RAG 2)**     | Ask general or document-specific questions, e.g., “Why was my deposit clause flagged?”; integrates the analysis report for **relevant answers**.      |
-| **Automated Report Generation**       | Summarizes **key findings, risks, and suggestions** into professional reports, ready to share or save.                                                |
-| **Multi-Language Support**            | Translates TAs automatically into multiple languages (English, Indonesian, Chinese, French, Spanish, German, Thai, Traditional & Simplified Chinese). |
-| **Thorough Clause Coverage**          | Supports **deep, clause-level analysis** with full risk context; goes beyond basic compliance checks.                                                 |
+| **Fast Whole-Doc Mode**               | Quick compliance check using a **CSV checklist**, ideal for large documents or rapid insights.                                                         |
+| **Thorough Clause Coverage**          | Supports **deep, clause-level analysis** with full risk context; goes beyond basic compliance checks.                                                |
+| **Risk Highlighting**                 | Flags ambiguous, missing, or potentially unfair clauses; highlights **critical vs. minor issues**.                                                  |
+| **Explainable AI**                    | Provides **clear reasoning** and references to model clauses for every flagged issue.                                                                |
+| **Context-Aware Chatbot (RAG 2)**     | Ask general or document-specific questions, e.g., “Why was my deposit clause flagged?”; integrates the analysis report for **relevant answers**.     |
+| **Automated Report Generation**       | Summarizes **key findings, risks, and suggestions** into professional reports, ready to share or save.                                               |
+| **Multi-Language Support**            | Translates TAs automatically into multiple languages: English, Indonesian, Chinese, French, Spanish, German, Thai, Traditional & Simplified Chinese. |
 
 ---
 
