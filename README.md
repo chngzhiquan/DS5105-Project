@@ -141,6 +141,12 @@ jupyter notebook test_rag.ipynb
 ### ▶️ **4. Run the App**
 streamlit run main_v2.py
 
+### ❓ FAQ / Troubleshooting
+Q: Streamlit fails to run
+A: Ensure .env has OPENAI_API_KEY & dependencies installed
+Q: FAISS index not found
+A: Run test_rag.ipynb to rebuild the index
+
 **✅ Using the App**
 - Upload your Tenancy Agreement PDF.
 - Click Process Document.
