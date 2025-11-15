@@ -4,6 +4,8 @@
 
 ![LeaseOwl Logo](Logo.jpeg)
 
+![Uploading Screenshot 2025-11-15 at 10.46.45 AM.png…]()
+
 ---
 
 ## 📘 Project Overview
@@ -142,10 +144,14 @@ jupyter notebook test_rag.ipynb
 streamlit run main_v2.py
 
 ### ❓ FAQ / Troubleshooting
-Q: Streamlit fails to run
-A: Ensure .env has OPENAI_API_KEY & dependencies installed
-Q: FAISS index not found
-A: Run test_rag.ipynb to rebuild the index
+- **Q:** Streamlit fails to run  
+  **A:** Ensure `.env` contains a valid `OPENAI_API_KEY` and all dependencies are installed. Use `pip install -r requirements.txt`.
+
+- **Q:** FAISS index not found  
+  **A:** Run `test_rag.ipynb` to rebuild the vector databases before using RAG queries.
+
+- **Q:** Module import errors  
+  **A:** Reinstall dependencies using `pip install -r requirements.txt` and ensure your virtual environment is active.
 
 **✅ Using the App**
 - Upload your Tenancy Agreement PDF.
@@ -162,14 +168,20 @@ A: Run test_rag.ipynb to rebuild the index
 - Whole-Doc mode JSON & Markdown summaries
 
 **🛠️ Thorough Mode**
-- Compares the entire TA with a compliance checklist.
-- Automatically compresses and summarizes large documents.
-- Returns structured JSON and multi-language Markdown reports.
+- Compares the entire Tenancy Agreement against a **detailed compliance checklist**.
+- Automatically **compresses and summarizes large documents** for clarity.
+- Returns **structured JSON and multi-language Markdown reports** highlighting missing or non-compliant clauses.
+
+**⚡ Fast Whole-Doc Mode**
+- Performs a quick compliance check using a **CSV checklist**.
+- Ideal for **large documents or rapid insights**.
+- Skips clause-level vector analysis for faster processing.
+- Returns **high-level JSON and Markdown reports** highlighting missing or non-compliant clauses.
 
 **🧩 Multi-Language Support**
 - Tenancy Agreement can be translated automatically.
 - Default languages:  
-  ["English", "Indonesian", "Thai", "Traditional Chinese", Simplified Chinese", "French", "Spanish", "German"]
+  ["English", "Indonesian", "Thai", "Traditional Chinese", "Simplified Chinese", "French", "Spanish", "German"]
 
 **📌 Notes**
 - Ensure .env has a valid OPENAI_API_KEY.
