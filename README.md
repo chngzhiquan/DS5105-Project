@@ -2,7 +2,9 @@
 ## [AI Tenancy Agreement Analyzer + Chatbot]
 ### *Your AI legal co-pilot for fair tenancy agreements*
 
-<img src="https://raw.githubusercontent.com/chngzhiquan/DS5105-Project/main/Logo.jpeg" alt="LeaseOwl Logo" width="200"/>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/chngzhiquan/DS5105-Project/main/Logo.jpeg" alt="LeaseOwl Logo" width="200"/>
+</p>
 
 ---
 
@@ -192,9 +194,9 @@ streamlit run main_v2.py
 - Improved OCR for scanned PDFs
 
 **⚡ References**  
-LangChain Documentation  
-FAISS Vector Store  
-OpenAI GPT API  
+- LangChain Documentation  
+- FAISS Vector Store  
+- OpenAI GPT API  
 
 **🧠 Credits**  
 Developed as part of the DS5105 Project  
