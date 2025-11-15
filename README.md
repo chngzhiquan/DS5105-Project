@@ -199,9 +199,14 @@ streamlit run main_v2.py
 - Improved OCR for scanned PDFs
 
 **⚡ References**  
-- LangChain Documentation  
+- LangChain Documentation
+- LangGraph Documentation
 - FAISS Vector Store  
-- OpenAI GPT API  
+- OpenAI GPT API
+- HuggingFace Embeddings
+- Streamlit Documentation
+- Pandas / NumPy Documentation
+- PyPDF2/ pypdf
 
 **🧠 Credits**  
 Developed as part of the DS5105 Project  
