@@ -4,8 +4,6 @@
 
 ![LeaseOwl Logo](Logo.jpeg)
 
-![Uploading Screenshot 2025-11-15 at 10.46.45 AM.png…]()
-
 ---
 
 ## 📘 Project Overview
