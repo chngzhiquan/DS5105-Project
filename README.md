@@ -68,15 +68,20 @@ Main functions include:
 
 ## 💻 Tech Stack
 
-| **Layer** | **Technology** |
-|-----------|----------------|
-| **Frontend** | Streamlit |
-| **Backend & Orchestration** | LangChain |
-| **LLM Engine** | OpenAI (e.g., `gpt-4o-mini`) |
-| **Embeddings** | HuggingFace `sentence-transformers/all-MiniLM-L6-v2` |
-| **Vector Store** | FAISS (Facebook AI Similarity Search) |
-| **Data Handling** | Pandas, PyPDFLoader |
-| **Environment** | Python, `.env` with `OPENAI_API_KEY` |
+| **Layer**                         | **Technology / Libraries**                                                    |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| **Frontend**                      | Streamlit                                                                     |
+| **Backend & Orchestration**       | LangChain, LangGraph                                                          |
+| **LLM Engine**                    | OpenAI (`gpt-4o-mini`), LangChain `ChatOpenAI` wrapper                        |
+| **Embeddings**                    | HuggingFace `sentence-transformers/all-MiniLM-L6-v2`, `HuggingFaceEmbeddings` |
+| **Vector Store**                  | FAISS (`langchain_community.vectorstores.FAISS`)                              |
+| **Document Loaders**              | `PyPDFLoader`, `DirectoryLoader`, `PdfReader` (`pypdf`), `docx`               |
+| **Text Handling & Preprocessing** | `pandas`, `numpy`, `textwrap`, `re`, `RecursiveCharacterTextSplitter`         |
+| **Prompts & Parsing**             | `ChatPromptTemplate`, `StrOutputParser`                                       |
+| **Async / Utilities**             | `asyncio`, `time`, `os`, `dotenv` (`load_dotenv`)                             |
+| **Environment & Configuration**   | Python `.env` with `OPENAI_API_KEY`, `pydantic` for structured configs        |
+| **Parallelization**               | `RunnableParallel` (LangChain)                                                |
+| **Documents & Types**             | `Document`, `TypedDict`, `BaseModel`, `Field`                                 |
 
 ---
 
